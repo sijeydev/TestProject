@@ -10,20 +10,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # УБЕРИ workdir или поставь точку (текущая директория)
+      - name: Create 'user' for buildozer-action
+        run: |
+          # Создаем группу и пользователя с UID 1000 (стандартный для контейнеров)
+          sudo groupadd -g 1000 user 2>/dev/null || echo "Group exists"
+          sudo useradd -u 1000 -g 1000 -m -s /bin/bash user 2>/dev/null || echo "User exists"
+          
+          # Проверяем
+          id user || echo "User not created"
+
       - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1  # Этот action все равно сломается!
+        uses: ArtemSBulgakov/buildozer-action@v1
         id: buildozer
         with:
-          # workdir: .  # Можно указать явно текущую директорию
-          # ИЛИ просто удалить строку workdir полностью
           buildozer_version: stable
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: package
-          path: ${{ steps.buildozer.outputs.filename }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
