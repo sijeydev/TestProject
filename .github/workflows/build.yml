@@ -1,40 +1,29 @@
-name: CI
-on:
-  push:
-    branches: [ main ]
+name: Build
+on: [push, pull_request]
 
 jobs:
-  build:
+  build-android:
+    name: Build for Android
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # used to cache dependencies with a timeout
-      - name: Get Date
-        id: get-date
-        run: |
-          echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
-        shell: bash
-
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: .buildozer_global
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }} # Replace with your path
-
-      - uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
-
+      # УБЕРИ workdir или поставь точку (текущая директория)
       - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
+        uses: ArtemSBulgakov/buildozer-action@v1  # Этот action все равно сломается!
         id: buildozer
         with:
-          command: buildozer android debug
-          buildozer_version: master
+          # workdir: .  # Можно указать явно текущую директорию
+          # ИЛИ просто удалить строку workdir полностью
+          buildozer_version: stable
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: ${{ steps.buildozer.outputs.filename }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
