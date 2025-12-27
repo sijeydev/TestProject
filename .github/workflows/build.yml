@@ -237,7 +237,7 @@ jobs:
         path: |
           build.log
           .buildozer/**/*.log
-        if-no-files-found: ignore      run: |
+        if-no-files-found: ignore      run: 
         pip install --upgrade pip setuptools wheel
         pip install buildozer
         pip install cython==0.29.33
