@@ -87,6 +87,60 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: build-logs
+        path: build.log
+        if-no-files-found: ignore        echo -e "601085b94cd77f0b54ff86406957099ebe79c4d6" > /usr/lib/android-sdk/licenses/intel-android-extra-license
+    
+    - name: Cache Buildozer directories
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.buildozer
+          ~/.android
+          ~/.gradle
+          .buildozer
+        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-
+    
+    - name: Configure Buildozer
+      run: |
+        if [ ! -f "buildozer.spec" ]; then
+          buildozer init
+        fi
+        if [ -f "buildozer.spec" ]; then
+          sed -i 's/^#android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec || true
+          sed -i 's/^android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec || true
+        fi
+    
+    - name: Build APK
+      run: |
+        export ANDROID_HOME=/usr/lib/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        yes | sdkmanager --licenses || true
+        export JAVA_OPTS="-Xmx2048m -Xms512m"
+        export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
+        buildozer -v android debug 2>&1 | tee build.log
+        if ls bin/*.apk 1> /dev/null 2>&1; then
+          echo "APK file created successfully!"
+          ls -la bin/*.apk
+        else
+          echo "APK file not found!"
+          tail -100 build.log
+          exit 1
+        fi
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: bin/*.apk
+        if-no-files-found: error
+    
+    - name: Upload build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
         path: |
           build.log
           .buildozer/**/*.log
