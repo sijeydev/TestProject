@@ -17,24 +17,80 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          python3-pip \
-          git \
-          build-essential \
-          libffi-dev \
-          libssl-dev \
-          python3-dev \
-          openjdk-17-jdk \
-          zlib1g-dev \
-          ccache \
-          autoconf \
-          libtool \
-          pkg-config \
-          cmake \
-          ninja-build \
-          wget \
-          unzip
+        sudo apt-get install -y python3-pip git build-essential libffi-dev libssl-dev python3-dev openjdk-17-jdk zlib1g-dev ccache autoconf libtool pkg-config cmake ninja-build wget unzip
     
+    - name: Install Buildozer and dependencies
+      run: |
+        pip install --upgrade pip setuptools wheel
+        pip install buildozer
+        pip install cython==0.29.33
+        pip install virtualenv
+    
+    - name: Accept Android SDK licenses
+      run: |
+        mkdir -p ~/.android
+        echo "### User Sources for Android SDK Manager" > ~/.android/repositories.cfg
+        yes | /usr/lib/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        mkdir -p /usr/lib/android-sdk/licenses
+        echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e" > /usr/lib/android-sdk/licenses/android-sdk-license
+        echo -e "84831b9409646a918e30573bab4c9c91346d8abd" > /usr/lib/android-sdk/licenses/android-sdk-preview-license
+        echo -e "601085b94cd77f0b54ff86406957099ebe79c4d6" > /usr/lib/android-sdk/licenses/intel-android-extra-license
+    
+    - name: Cache Buildozer directories
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.buildozer
+          ~/.android
+          ~/.gradle
+          .buildozer
+        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-
+    
+    - name: Configure Buildozer
+      run: |
+        if [ ! -f "buildozer.spec" ]; then
+          buildozer init
+        fi
+        if [ -f "buildozer.spec" ]; then
+          sed -i 's/^#android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec || true
+          sed -i 's/^android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec || true
+        fi
+    
+    - name: Build APK
+      run: |
+        export ANDROID_HOME=/usr/lib/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        yes | sdkmanager --licenses || true
+        export JAVA_OPTS="-Xmx2048m -Xms512m"
+        export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
+        buildozer -v android debug 2>&1 | tee build.log
+        if ls bin/*.apk 1> /dev/null 2>&1; then
+          echo "APK file created successfully!"
+          ls -la bin/*.apk
+        else
+          echo "APK file not found!"
+          tail -100 build.log
+          exit 1
+        fi
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: bin/*.apk
+        if-no-files-found: error
+    
+    - name: Upload build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: |
+          build.log
+          .buildozer/**/*.log
+        if-no-files-found: ignore    
     - name: Install Buildozer and dependencies
       run: |
         pip install --upgrade pip setuptools wheel
