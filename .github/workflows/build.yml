@@ -1,46 +1,56 @@
-name: CI
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  schedule:
-    - cron: '0 0 1,15 * *'
+name: Build Android APK
+
+on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - uses: actions/checkout@v4
-
-      # used to cache dependencies with a timeout
-      - name: Get Date
-        id: get-date
-        run: |
-          echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
-        shell: bash
-
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: .buildozer_global
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }} # Replace with your path
-
-      - uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
-
-      - name: Build with Buildozer
-        uses: n8marti/buildozer-action@fix-user-doesnt-exist
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: master
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: package
-          path: ${{ steps.buildozer.outputs.filename }}
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-pip \
+          git \
+          build-essential \
+          libffi-dev \
+          libssl-dev \
+          python3-dev \
+          openjdk-17-jdk \
+          zlib1g-dev \
+          ccache \
+          autoconf \
+          libtool \
+          pkg-config \
+          cmake \
+          ninja-build
+    
+    - name: Install Buildozer
+      run: |
+        pip install --upgrade pip setuptools wheel
+        pip install buildozer
+        pip install cython==0.29.33
+        pip install virtualenv
+    
+    - name: Build APK
+      run: |
+        buildozer -v android debug
+      env:
+        P4A_RELEASE_KEYSTORE: ${{ secrets.P4A_RELEASE_KEYSTORE }}
+        P4A_RELEASE_KEYSTORE_PASSWD: ${{ secrets.P4A_RELEASE_KEYSTORE_PASSWD }}
+        P4A_RELEASE_KEYALIAS_PASSWD: ${{ secrets.P4A_RELEASE_KEYALIAS_PASSWD }}
+        P4A_RELEASE_KEYALIAS: ${{ secrets.P4A_RELEASE_KEYALIAS }}
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: bin/*.apk
