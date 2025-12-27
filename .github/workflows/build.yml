@@ -14,18 +14,21 @@ jobs:
     - run: |
         pip install buildozer
         pip install cython==0.29.33
-    - name: Setup Android SDK and accept licenses
+    - name: Install Android SDK
       run: |
-        mkdir -p ~/.android
-        echo "" > ~/.android/repositories.cfg
-        yes | /usr/lib/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-        /usr/lib/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;30.0.3" "platforms;android-30"
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q commandlinetools-linux-9477386_latest.zip
+        mkdir -p ~/.android/cmdline-tools
+        mv cmdline-tools ~/.android/cmdline-tools/latest
+        export ANDROID_HOME=~/.android
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        yes | sdkmanager --licenses > /dev/null 2>&1 || true
+        sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
     - name: Build with Buildozer
       run: |
         if [ ! -f "buildozer.spec" ]; then
           buildozer init
         fi
-        sed -i 's/#android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec
         buildozer -v android debug
     - uses: actions/upload-artifact@v4
       with:
