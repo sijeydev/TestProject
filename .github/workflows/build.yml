@@ -10,11 +10,23 @@ jobs:
         python-version: '3.9'
     - run: |
         sudo apt-get update
-        sudo apt-get install -y python3-pip openjdk-17-jdk git
+        sudo apt-get install -y python3-pip openjdk-17-jdk git wget unzip
     - run: |
         pip install buildozer
         pip install cython==0.29.33
-    - run: buildozer -v android debug
+    - name: Setup Android SDK and accept licenses
+      run: |
+        mkdir -p ~/.android
+        echo "" > ~/.android/repositories.cfg
+        yes | /usr/lib/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+        /usr/lib/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;30.0.3" "platforms;android-30"
+    - name: Build with Buildozer
+      run: |
+        if [ ! -f "buildozer.spec" ]; then
+          buildozer init
+        fi
+        sed -i 's/#android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec
+        buildozer -v android debug
     - uses: actions/upload-artifact@v4
       with:
         name: apk
