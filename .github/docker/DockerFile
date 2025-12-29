@@ -1,0 +1,47 @@
+FROM ubuntu:22.04
+
+# Установите необходимые зависимости
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    python3 \
+    python3-pip \
+    python3-venv \
+    openjdk-17-jdk \
+    zip \
+    unzip \
+    libssl-dev \
+    libffi-dev \
+    autoconf \
+    libtool \
+    pkg-config \
+    zlib1g-dev \
+    libncurses5-dev \
+    libncursesw5-dev \
+    libtinfo5 \
+    libgdbm-dev \
+    libc6-dev \
+    libbz2-dev \
+    libexpat1-dev \
+    lzma \
+    liblzma-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libgdbm-compat-dev \
+    tk-dev \
+    libffi-dev \
+    wget \
+    curl \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создайте пользователя 'user'
+RUN useradd -m -s /bin/bash user && \
+    echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/user
+
+# Установите Buildozer
+RUN pip3 install --upgrade pip setuptools wheel && \
+    pip3 install buildozer cython==0.29.33
+
+USER user
+WORKDIR /home/user
