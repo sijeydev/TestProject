@@ -9,44 +9,62 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: DELETE OLD buildozer.spec
+      run: |
+        rm -f buildozer.spec
+        echo "Старый файл удален"
+    
     - uses: actions/setup-python@v4
       with:
         python-version: '3.9'
     
     - run: pip install buildozer cython==0.29.33
     
-    - name: Create clean buildozer.spec
+    - name: Create NEW buildozer.spec
       run: |
-        rm -f buildozer.spec
         buildozer init
         
-        # Добавляем только ОДИН РАЗ секцию [buildozer]
-        echo -e "\n[buildozer]\nandroid.accept_sdk_license = True\nandroid.skip_update = True" >> buildozer.spec
+        # ПРОВЕРЯЕМ что добавилось
+        echo "=== После buildozer init ==="
+        grep -n "^\[" buildozer.spec
         
-        # Добавляем ОДИН РАЗ секцию [android]
-        echo -e "\n[android]\nandroid.sdk = 34\nandroid.ndk = $ANDROID_NDK_HOME" >> buildozer.spec
+        # ЕСЛИ уже есть [buildozer] - НЕ добавляем
+        if grep -q "^\[buildozer\]" buildozer.spec; then
+          echo "Секция [buildozer] уже существует, не добавляем"
+          # Только меняем настройку
+          sed -i '/^\[buildozer\]/,/^\[/ s/^#*android.accept_sdk_license = .*/android.accept_sdk_license = True/' buildozer.spec
+        else
+          echo "Добавляем секцию [buildozer]"
+          echo -e "\n[buildozer]\nandroid.accept_sdk_license = True" >> buildozer.spec
+        fi
+        
+        # ТО ЖЕ САМОЕ для [android]
+        if grep -q "^\[android\]" buildozer.spec; then
+          echo "Секция [android] уже существует"
+          sed -i '/^\[android\]/,/^\[/ s/^#*android.sdk = .*/android.sdk = 34/' buildozer.spec
+        else
+          echo "Добавляем секцию [android]"
+          echo -e "\n[android]\nandroid.sdk = 34" >> buildozer.spec
+        fi
+        
+        echo "=== ФИНАЛЬНЫЙ ВИД ==="
+        grep -n "^\[" buildozer.spec
     
     - name: Install Android Build Tools
       run: |
-        # Проверяем и устанавливаем build-tools
-        if [ ! -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" ]; then
-          echo "Устанавливаем build-tools..."
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
-        fi
-        
-        # Проверяем что aidl существует
-        find $ANDROID_SDK_ROOT -name "aidl" -type f | head -5
+        # ТОЧНО устанавливаем build-tools
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" "platform-tools"
     
     - name: Build APK
       run: |
-        buildozer -v android debug 2>&1 | tee build.log
+        buildozer -v android debug
         
         if ls bin/*.apk 1> /dev/null 2>&1; then
           echo "✅ APK создан"
+          ls bin/*.apk
         else
           echo "❌ APK не найден"
-          grep -i "error\|fail\|aidl" build.log | head -10
+          ls -la bin/ 2>/dev/null || echo "Папка bin не существует"
           exit 1
         fi
     
