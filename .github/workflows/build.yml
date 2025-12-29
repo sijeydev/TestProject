@@ -98,10 +98,17 @@ jobs:
           yes | sdkmanager --licenses > /dev/null 2>&1
           sdkmanager "platform-tools" "build-tools;34.0.0"
 
-      - name: Configure Buildozer for Android
+      - name: Fix buildozer.spec duplicates
         run: |
-          echo -e "\n[buildozer]\nandroid.accept_sdk_license = True" >> buildozer.spec
-          echo -e "\n[android]\nandroid.sdk = 34" >> buildozer.spec
+          # Удаляем дублирующиеся секции если они есть
+          if grep -q "\[buildozer\]" buildozer.spec; then
+            # Если секция уже есть, не добавляем ее снова
+            sed -i '/^android.accept_sdk_license/d' buildozer.spec
+            sed -i '/^\[buildozer\]/,/^\[/ s/^#android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+          else
+            # Если секции нет, добавляем
+            echo -e "\n[buildozer]\nandroid.accept_sdk_license = True" >> buildozer.spec
+          fi
 
       - name: Build APK with Buildozer
         run: |
@@ -113,7 +120,10 @@ jobs:
           
           if ls bin/*.apk 1> /dev/null 2>&1; then
             echo "APK создан"
+            ls -la bin/*.apk
           else
+            echo "=== Последние 50 строк лога ==="
+            tail -50 buildozer.log
             echo "APK не найден"
             exit 1
           fi
