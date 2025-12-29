@@ -72,27 +72,44 @@ jobs:
             buildozer init
           fi
 
-      - name: Setup Android SDK licenses
+      - name: Setup Android environment
         run: |
-          mkdir -p ~/.android
-          echo "" > ~/.android/repositories.cfg
-          mkdir -p /usr/lib/android-sdk/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > /usr/lib/android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> /usr/lib/android-sdk/licenses/android-sdk-license
-          echo "84831b9409646a918e30573bab4c9c91346d8abd" > /usr/lib/android-sdk/licenses/android-sdk-preview-license
+          mkdir -p ~/android-sdk
+          cd ~/android-sdk
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/* cmdline-tools/latest/
+          rm commandlinetools-linux-9477386_latest.zip
+          
+          export ANDROID_SDK_ROOT=~/android-sdk
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+          
+          mkdir -p $ANDROID_SDK_ROOT/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
+
+      - name: Install Android SDK components
+        run: |
+          export ANDROID_SDK_ROOT=~/android-sdk
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1
+          sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
 
       - name: Build APK with Buildozer
         run: |
+          export ANDROID_SDK_ROOT=~/android-sdk
           export JAVA_OPTS="-Xmx2048m -Xms512m"
           export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
           
           sed -i 's/#android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec 2>/dev/null || echo "android.accept_sdk_license = True" >> buildozer.spec
           
-          echo "y" | buildozer -v android debug 2>&1 | tee buildozer.log
+          buildozer -v android debug 2>&1 | tee buildozer.log
           
-          if [ -f "$(find . -name '*.apk' -type f | head -1)" ]; then
+          if [ -f "$(find bin -name '*.apk' -type f | head -1)" ]; then
             echo "APK файл найден"
-            APK_FILE=$(find . -name '*.apk' -type f | head -1)
+            APK_FILE=$(find bin -name '*.apk' -type f | head -1)
             echo "APK_PATH=$APK_FILE" >> $GITHUB_ENV
           else
             echo "APK файл не найден."
@@ -111,9 +128,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: |
-            bin/*.apk
-            *.apk
+          path: bin/*.apk
           if-no-files-found: error
 
       - name: Upload build logs
