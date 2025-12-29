@@ -8,35 +8,85 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4  # Обновлено с v2 на v4
 
-      # used to cache dependencies with a timeout
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'  # Укажите нужную версию Python
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip \
+            git \
+            build-essential \
+            libffi-dev \
+            libssl-dev \
+            python3-dev \
+            openjdk-17-jdk \
+            zlib1g-dev \
+            ccache \
+            autoconf \
+            libtool \
+            pkg-config \
+            cmake \
+            ninja-build
+
+      # Исправленный способ кеширования с датой
       - name: Get Date
         id: get-date
-        run: |
-          echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
-        shell: bash
+        run: echo "date=$(date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
 
       - name: Cache Buildozer global directory
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
-          path: .buildozer_global
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }} # Replace with your path
+          path: |
+            .buildozer_global
+            ~/.buildozer
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}-${{ steps.get-date.outputs.date }}
 
-      - uses: actions/cache@v2
+      - name: Cache Buildozer project directory
+        uses: actions/cache@v4
         with:
           path: .buildozer
-          key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-${{ steps.get-date.outputs.date }}
+
+      # ВАРИАНТ 1: Используем исправленный action (если он вам нужен)
+      # Сначала создаем пользователя 'user'
+      - name: Create user for buildozer-action
+        run: |
+          sudo groupadd -g 1000 user 2>/dev/null || true
+          sudo useradd -u 1000 -g 1000 -m user 2>/dev/null || true
 
       - name: Build with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
         id: buildozer
         with:
-          command: buildozer android debug
-          buildozer_version: master
+          command: android debug  # Изменено с 'buildozer android debug'
+          # buildozer_version: master  # Опционально, можно убрать
+
+      # ИЛИ ВАРИАНТ 2: Установка Buildozer напрямую (рекомендуется)
+      # Раскомментируйте этот блок и закомментируйте два предыдущих шага
+      # - name: Install Buildozer
+      #   run: |
+      #     pip install --upgrade pip setuptools wheel
+      #     pip install buildozer
+      #     pip install cython==0.29.33
+      # 
+      # - name: Build APK with Buildozer
+      #   id: buildozer
+      #   run: |
+      #     buildozer -v android debug
+      #     # Находим созданный APK файл
+      #     APK_FILE=$(find bin -name "*.apk" | head -1)
+      #     echo "filename=$APK_FILE" >> $GITHUB_OUTPUT
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: package
           path: ${{ steps.buildozer.outputs.filename }}
+          # Если используете вариант 2, путь будет bin/*.apk
+          # path: bin/*.apk
