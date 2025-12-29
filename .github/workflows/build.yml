@@ -9,62 +9,66 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: DELETE OLD buildozer.spec
-      run: |
-        rm -f buildozer.spec
-        echo "Старый файл удален"
-    
     - uses: actions/setup-python@v4
       with:
         python-version: '3.9'
     
     - run: pip install buildozer cython==0.29.33
     
-    - name: Create NEW buildozer.spec
+    - name: Accept ALL Android licenses
       run: |
-        buildozer init
+        # Создаем ВСЕ файлы лицензий
+        mkdir -p $ANDROID_SDK_ROOT/licenses
+        echo -e "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b68f1c\n84831b9409646a918e30573bab4c9c91346d8abd\n601085b94cd77f0b54ff86406957099ebe79c4d6\n33b6a2b64607f17b" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
         
-        # ПРОВЕРЯЕМ что добавилось
-        echo "=== После buildozer init ==="
-        grep -n "^\[" buildozer.spec
-        
-        # ЕСЛИ уже есть [buildozer] - НЕ добавляем
-        if grep -q "^\[buildozer\]" buildozer.spec; then
-          echo "Секция [buildozer] уже существует, не добавляем"
-          # Только меняем настройку
-          sed -i '/^\[buildozer\]/,/^\[/ s/^#*android.accept_sdk_license = .*/android.accept_sdk_license = True/' buildozer.spec
-        else
-          echo "Добавляем секцию [buildozer]"
-          echo -e "\n[buildozer]\nandroid.accept_sdk_license = True" >> buildozer.spec
-        fi
-        
-        # ТО ЖЕ САМОЕ для [android]
-        if grep -q "^\[android\]" buildozer.spec; then
-          echo "Секция [android] уже существует"
-          sed -i '/^\[android\]/,/^\[/ s/^#*android.sdk = .*/android.sdk = 34/' buildozer.spec
-        else
-          echo "Добавляем секцию [android]"
-          echo -e "\n[android]\nandroid.sdk = 34" >> buildozer.spec
-        fi
-        
-        echo "=== ФИНАЛЬНЫЙ ВИД ==="
-        grep -n "^\[" buildozer.spec
+        # Принимаем через sdkmanager тоже
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
     
-    - name: Install Android Build Tools
+    - name: Install build-tools 34.0.0
       run: |
-        # ТОЧНО устанавливаем build-tools
+        # Устанавливаем КОНКРЕТНУЮ версию которую запрашивает Buildozer
         $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" "platform-tools"
+        
+        # Проверяем что aidl установлен
+        ls -la $ANDROID_SDK_ROOT/build-tools/34.0.0/aidl
+    
+    - name: Configure Buildozer to use SYSTEM SDK
+      run: |
+        # Удаляем старый spec
+        #rm -f buildozer.spec
+        
+        # Создаем новый
+        #buildozer init
+        
+        # РЕДАКТИРУЕМ СУЩЕСТВУЮЩИЙ spec а не добавляем новые секции
+        # Находим и меняем строки ВНУТРИ существующих секций
+        
+        # Меняем android.sdk = на 34
+        sed -i 's/^#*android.sdk = .*/android.sdk = 34/' buildozer.spec
+        
+        # Меняем android.accept_sdk_license
+        sed -i 's/^#*android.accept_sdk_license = .*/android.accept_sdk_license = True/' buildozer.spec
+        
+        # Добавляем android.sdk_path если нет
+        if ! grep -q "android.sdk_path" buildozer.spec; then
+          sed -i '/^\[android\]/a android.sdk_path = $ANDROID_SDK_ROOT' buildozer.spec
+        fi
+        
+        # Убираем android.skip_update чтобы Buildozer не скачивал свой SDK
+        sed -i '/android.skip_update/d' buildozer.spec
     
     - name: Build APK
       run: |
-        buildozer -v android debug
+        # Собираем
+        buildozer -v android debug 2>&1 | tee build.log
         
         if ls bin/*.apk 1> /dev/null 2>&1; then
           echo "✅ APK создан"
           ls bin/*.apk
         else
           echo "❌ APK не найден"
-          ls -la bin/ 2>/dev/null || echo "Папка bin не существует"
+          echo "=== Ошибки в логе ==="
+          grep -i "error\|fail\|aidl\|license" build.log
           exit 1
         fi
     
