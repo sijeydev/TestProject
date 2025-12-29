@@ -8,12 +8,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4  # Обновлено с v2 на v4
+      - uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'  # Укажите нужную версию Python
+          python-version: '3.9'
 
       - name: Install system dependencies
         run: |
@@ -32,9 +32,11 @@ jobs:
             libtool \
             pkg-config \
             cmake \
-            ninja-build
+            ninja-build \
+            unzip \
+            zip
 
-      # Исправленный способ кеширования с датой
+      # Исправленный способ получения даты
       - name: Get Date
         id: get-date
         run: echo "date=$(date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
@@ -43,50 +45,84 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            .buildozer_global
             ~/.buildozer
+            ~/.android
+            ~/.gradle
           key: buildozer-global-${{ hashFiles('buildozer.spec') }}-${{ steps.get-date.outputs.date }}
+          restore-keys: |
+            buildozer-global-${{ hashFiles('buildozer.spec') }}-
 
       - name: Cache Buildozer project directory
         uses: actions/cache@v4
         with:
           path: .buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-${{ steps.get-date.outputs.date }}
+          key: ${{ runner.os }}-buildozer-project-${{ hashFiles('buildozer.spec') }}-${{ steps.get-date.outputs.date }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-project-${{ hashFiles('buildozer.spec') }}-
 
-      # ВАРИАНТ 1: Используем исправленный action (если он вам нужен)
-      # Сначала создаем пользователя 'user'
-      - name: Create user for buildozer-action
+      - name: Install Buildozer and dependencies
         run: |
-          sudo groupadd -g 1000 user 2>/dev/null || true
-          sudo useradd -u 1000 -g 1000 -m user 2>/dev/null || true
+          pip install --upgrade pip setuptools wheel virtualenv
+          pip install buildozer
+          pip install cython==0.29.33
+          pip install kivy  # Опционально, если нужно
 
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: android debug  # Изменено с 'buildozer android debug'
-          # buildozer_version: master  # Опционально, можно убрать
+      - name: Initialize Buildozer if needed
+        run: |
+          if [ ! -f "buildozer.spec" ]; then
+            buildozer init
+          fi
 
-      # ИЛИ ВАРИАНТ 2: Установка Buildozer напрямую (рекомендуется)
-      # Раскомментируйте этот блок и закомментируйте два предыдущих шага
-      # - name: Install Buildozer
-      #   run: |
-      #     pip install --upgrade pip setuptools wheel
-      #     pip install buildozer
-      #     pip install cython==0.29.33
-      # 
-      # - name: Build APK with Buildozer
-      #   id: buildozer
-      #   run: |
-      #     buildozer -v android debug
-      #     # Находим созданный APK файл
-      #     APK_FILE=$(find bin -name "*.apk" | head -1)
-      #     echo "filename=$APK_FILE" >> $GITHUB_OUTPUT
+      - name: Debug - List directory
+        run: ls -la
 
-      - name: Upload artifacts
+      - name: Build APK with Buildozer
+        run: |
+          # Увеличиваем лимит памяти для Java
+          export JAVA_OPTS="-Xmx2048m -Xms512m"
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
+          
+          # Строим APK
+          buildozer -v android debug 2>&1 | tee buildozer.log
+          
+          # Проверяем успешность сборки
+          if [ -f "$(find . -name '*.apk' -type f | head -1)" ]; then
+            echo "APK файл найден"
+            APK_FILE=$(find . -name '*.apk' -type f | head -1)
+            echo "APK_PATH=$APK_FILE" >> $GITHUB_ENV
+          else
+            echo "APK файл не найден. Проверьте логи сборки:"
+            tail -100 buildozer.log
+            exit 1
+          fi
+
+      - name: Show build log on error
+        if: failure()
+        run: |
+          echo "=== Последние 200 строк лога Buildozer ==="
+          tail -200 buildozer.log || true
+          echo "=== Содержимое директории bin ==="
+          ls -la bin/ || true
+          echo "=== Содержимое .buildozer ==="
+          ls -la .buildozer/ || true
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: package
-          path: ${{ steps.buildozer.outputs.filename }}
-          # Если используете вариант 2, путь будет bin/*.apk
-          # path: bin/*.apk
+          name: android-apk
+          path: |
+            bin/*.apk
+            *.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            buildozer.log
+            .buildozer/**/*.log
+          if-no-files-found: ignore
+          retention-days: 3
