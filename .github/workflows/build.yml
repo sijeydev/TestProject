@@ -72,65 +72,66 @@ jobs:
             buildozer init
           fi
 
-      - name: Setup Android SDK
+      - name: Pre-create Android SDK directory and accept licenses
         run: |
-          mkdir -p ~/android-sdk
-          cd ~/android-sdk
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-9477386_latest.zip
-          mkdir -p cmdline-tools
-          mv cmdline-tools cmdline-tools-temp
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools-temp/* cmdline-tools/latest/
-          rm -rf cmdline-tools-temp commandlinetools-linux-9477386_latest.zip
+          # Создаем директорию куда Buildozer будет скачивать SDK
+          mkdir -p ~/.buildozer/android/platform/android-sdk
           
-          export ANDROID_SDK_ROOT=~/android-sdk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+          # Создаем файлы лицензий ПЕРЕД тем как Buildozer начнет работать
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          echo -e "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo -e "84831b9409646a918e30573bab4c9c91346d8abd" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+          echo -e "601085b94cd77f0b54ff86406957099ebe79c4d6" > ~/.buildozer/android/platform/android-sdk/licenses/intel-android-extra-license
           
-          mkdir -p $ANDROID_SDK_ROOT/licenses
-          echo -e "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
-          echo -e "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
+          # Также создаем в стандартном месте
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
 
-      - name: Install Android tools
+      - name: Configure Buildozer to auto-accept licenses
         run: |
-          export ANDROID_SDK_ROOT=~/android-sdk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-          yes | sdkmanager --licenses > /dev/null 2>&1
-          sdkmanager "platform-tools" "build-tools;34.0.0"
-
-      - name: Fix buildozer.spec duplicates
-        run: |
-          # Удаляем дублирующиеся секции если они есть
-          if grep -q "\[buildozer\]" buildozer.spec; then
-            # Если секция уже есть, не добавляем ее снова
-            sed -i '/^android.accept_sdk_license/d' buildozer.spec
-            sed -i '/^\[buildozer\]/,/^\[/ s/^#android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+          # Добавляем или обновляем настройку в buildozer.spec
+          if grep -q "^\[buildozer\]" buildozer.spec; then
+            # Если секция уже существует
+            sed -i '/^\[buildozer\]/,/^\[/ s/^#*android.accept_sdk_license = .*/android.accept_sdk_license = True/' buildozer.spec
+            if ! grep -q "android.accept_sdk_license = True" buildozer.spec; then
+              sed -i '/^\[buildozer\]/a android.accept_sdk_license = True' buildozer.spec
+            fi
           else
-            # Если секции нет, добавляем
+            # Если секции нет
             echo -e "\n[buildozer]\nandroid.accept_sdk_license = True" >> buildozer.spec
           fi
 
-      - name: Build APK with Buildozer
+      - name: Build APK with Buildozer (with auto yes)
         run: |
-          export ANDROID_SDK_ROOT=~/android-sdk
+          # Экспортируем переменные для памяти
           export JAVA_OPTS="-Xmx2048m -Xms512m"
           export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
           
-          buildozer -v android debug 2>&1 | tee buildozer.log
+          # Запускаем Buildozer с автоматическим ответом "yes" на все вопросы
+          echo "y" | buildozer -v android debug 2>&1 | tee buildozer.log
           
+          # Проверяем успешность сборки
           if ls bin/*.apk 1> /dev/null 2>&1; then
-            echo "APK создан"
+            echo "✅ APK создан успешно"
             ls -la bin/*.apk
           else
-            echo "=== Последние 50 строк лога ==="
-            tail -50 buildozer.log
-            echo "APK не найден"
+            echo "❌ APK не найден"
+            echo "=== Последние 100 строк лога ==="
+            tail -100 buildozer.log
             exit 1
           fi
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
           path: bin/*.apk
           if-no-files-found: error
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: buildozer.log
+          if-no-files-found: ignore
