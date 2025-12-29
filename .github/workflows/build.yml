@@ -72,35 +72,36 @@ jobs:
             buildozer init
           fi
 
-      - name: Setup Android environment
+      - name: Setup Android SDK
         run: |
           mkdir -p ~/android-sdk
           cd ~/android-sdk
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-9477386_latest.zip
+          mkdir -p cmdline-tools
+          mv cmdline-tools cmdline-tools-temp
           mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/
-          rm commandlinetools-linux-9477386_latest.zip
+          mv cmdline-tools-temp/* cmdline-tools/latest/
+          rm -rf cmdline-tools-temp commandlinetools-linux-9477386_latest.zip
           
-          export ANDROID_SDK_ROOT=~/android-sdk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-
-      - name: Accept Android licenses
-        run: |
           export ANDROID_SDK_ROOT=~/android-sdk
           export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
           
           mkdir -p $ANDROID_SDK_ROOT/licenses
           echo -e "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
           echo -e "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
-          
-          yes | sdkmanager --licenses > /dev/null 2>&1
 
-      - name: Install Android SDK components
+      - name: Install Android tools
         run: |
           export ANDROID_SDK_ROOT=~/android-sdk
           export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-          sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+          yes | sdkmanager --licenses > /dev/null 2>&1
+          sdkmanager "platform-tools" "build-tools;34.0.0"
+
+      - name: Configure Buildozer for Android
+        run: |
+          echo -e "\n[buildozer]\nandroid.accept_sdk_license = True" >> buildozer.spec
+          echo -e "\n[android]\nandroid.sdk = 34" >> buildozer.spec
 
       - name: Build APK with Buildozer
         run: |
@@ -108,38 +109,18 @@ jobs:
           export JAVA_OPTS="-Xmx2048m -Xms512m"
           export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
           
-          sed -i 's/#android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec 2>/dev/null || echo "android.accept_sdk_license = True" >> buildozer.spec
-          
           buildozer -v android debug 2>&1 | tee buildozer.log
           
-          if [ -f "$(find bin -name '*.apk' -type f | head -1)" ]; then
-            echo "APK файл найден"
-            APK_FILE=$(find bin -name '*.apk' -type f | head -1)
-            echo "APK_PATH=$APK_FILE" >> $GITHUB_ENV
+          if ls bin/*.apk 1> /dev/null 2>&1; then
+            echo "APK создан"
           else
-            echo "APK файл не найден."
-            tail -100 buildozer.log
+            echo "APK не найден"
             exit 1
           fi
 
-      - name: Show build log on error
-        if: failure()
-        run: |
-          tail -200 buildozer.log || true
-          ls -la bin/ || true
-          ls -la .buildozer/ || true
-
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
           path: bin/*.apk
           if-no-files-found: error
-
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: buildozer.log
-          if-no-files-found: ignore
