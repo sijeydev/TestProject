@@ -15,30 +15,9 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            git \
-            build-essential \
-            libffi-dev \
-            libssl-dev \
-            python3-dev \
-            openjdk-17-jdk \
-            zlib1g-dev \
-            ccache \
-            autoconf \
-            libtool \
-            pkg-config \
-            cmake \
-            ninja-build \
-            unzip \
-            zip
-
       - name: Install Buildozer and dependencies
         run: |
-          pip install --upgrade pip setuptools wheel virtualenv
+          pip install --upgrade pip setuptools wheel
           pip install buildozer
           pip install cython==0.29.33
 
@@ -48,52 +27,49 @@ jobs:
             buildozer init
           fi
 
+      - name: Clean buildozer.spec from duplicates
+        run: |
+          # Удаляем все дубликаты секций
+          awk '/^\[/ { if (seen[$0]++) next } 1' buildozer.spec > buildozer_temp.spec
+          mv buildozer_temp.spec buildozer.spec
+          
+          # Проверяем что секция [buildozer] существует
+          if ! grep -q "^\[buildozer\]" buildozer.spec; then
+            echo -e "\n[buildozer]" >> buildozer.spec
+          fi
+          
+          # Добавляем настройки если их нет
+          if ! grep -q "android.accept_sdk_license" buildozer.spec; then
+            sed -i '/^\[buildozer\]/a android.accept_sdk_license = True' buildozer.spec
+          fi
+          
+          if ! grep -q "android.sdk_path" buildozer.spec; then
+            echo -e "\n[android]\nandroid.sdk_path = $ANDROID_SDK_ROOT" >> buildozer.spec
+          fi
+
       - name: Accept Android licenses
         run: |
-          # Принимаем лицензии для существующего SDK
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          
-          # Создаем файлы лицензий
-          mkdir -p ~/.android/licenses
-          mkdir -p $ANDROID_SDK_ROOT/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
-
-      - name: Configure Buildozer to use existing SDK
-        run: |
-          # Обновляем buildozer.spec чтобы использовать существующий SDK
-          echo -e "\n[buildozer]\nandroid.accept_sdk_license = True" >> buildozer.spec
-          
-          # Указываем путь к существующему SDK
-          echo -e "\n[android]\nandroid.sdk_path = $ANDROID_SDK_ROOT" >> buildozer.spec
-          echo "android.ndk_path = $ANDROID_NDK_HOME" >> buildozer.spec
-          echo "android.ant_path = /usr/bin/ant" >> buildozer.spec
 
       - name: Build APK with Buildozer
         run: |
-          export JAVA_OPTS="-Xmx2048m -Xms512m"
-          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
+          echo "=== Проверка buildozer.spec ==="
+          grep -n "^\[" buildozer.spec
           
-          # Показываем что используем
-          echo "Используем Android SDK: $ANDROID_SDK_ROOT"
-          echo "Используем Android NDK: $ANDROID_NDK_HOME"
-          
-          # Запускаем сборку
+          echo "=== Начало сборки ==="
           buildozer -v android debug 2>&1 | tee buildozer.log
           
           if ls bin/*.apk 1> /dev/null 2>&1; then
             echo "✅ APK создан успешно"
-            ls -la bin/*.apk
           else
             echo "❌ APK не найден"
-            echo "=== Последние 100 строк лога ==="
             tail -100 buildozer.log
             exit 1
           fi
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
+          name: apk
           path: bin/*.apk
           if-no-files-found: error
