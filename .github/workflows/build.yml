@@ -15,32 +15,40 @@ jobs:
     
     - run: pip install buildozer cython==0.29.33
     
+    - name: Create clean buildozer.spec
+      run: |
+        rm -f buildozer.spec
+        buildozer init
+        
+        # Добавляем только ОДИН РАЗ секцию [buildozer]
+        echo -e "\n[buildozer]\nandroid.accept_sdk_license = True\nandroid.skip_update = True" >> buildozer.spec
+        
+        # Добавляем ОДИН РАЗ секцию [android]
+        echo -e "\n[android]\nandroid.sdk = 34\nandroid.ndk = $ANDROID_NDK_HOME" >> buildozer.spec
+    
     - name: Install Android Build Tools
       run: |
-        # Устанавливаем необходимые версии Build Tools
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
-          "platform-tools" \
-          "build-tools;34.0.0" \
-          "platforms;android-34"
-    
-    - name: Initialize Buildozer
-      run: |
-        if [ ! -f "buildozer.spec" ]; then
-          buildozer init
+        # Проверяем и устанавливаем build-tools
+        if [ ! -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" ]; then
+          echo "Устанавливаем build-tools..."
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
         fi
-    
-    - name: Configure Buildozer
-      run: |
-        # Очищаем дубликаты секций
-        awk '/^\[/ { if (seen[$0]++) next } 1' buildozer.spec > temp.spec && mv temp.spec buildozer.spec
         
-        # Добавляем настройки
-        echo -e "\n[android]\nandroid.sdk = 34\nandroid.ndk = 27.3.13750724" >> buildozer.spec
-        echo -e "\n[buildozer]\nandroid.accept_sdk_license = True" >> buildozer.spec
+        # Проверяем что aidl существует
+        find $ANDROID_SDK_ROOT -name "aidl" -type f | head -5
     
     - name: Build APK
       run: |
-        buildozer -v android debug
+        buildozer -v android debug 2>&1 | tee build.log
+        
+        if ls bin/*.apk 1> /dev/null 2>&1; then
+          echo "✅ APK создан"
+        else
+          echo "❌ APK не найден"
+          grep -i "error\|fail\|aidl" build.log | head -10
+          exit 1
+        fi
     
     - uses: actions/upload-artifact@v4
       with:
