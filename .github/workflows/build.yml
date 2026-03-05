@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Kivy APK
 
 on:
   push:
@@ -23,55 +23,71 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Устанавливаем зависимости
+    - name: Удаляем глобальный NDK
       run: |
-        sudo apt update
-        sudo apt install -y git wget unzip python3-pip \
-          autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev cmake \
-          libffi-dev libssl-dev libtinfo5
+        sudo rm -rf /usr/local/lib/android/sdk/ndk
+        sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
 
-    - name: Ставим p4a
+    - name: Ставим p4a и ломаем рецепт jnius
       run: |
         pip install --user --upgrade pip
         pip install --user cython virtualenv
         pip install --user python-for-android
-
-    - name: Качаем SDK и NDK руками
-      run: |
-        cd ~
-        mkdir -p android-sdk
-        cd android-sdk
         
-        # SDK
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        # Находим где лежит рецепт pyjnius и удаляем его нафиг
+        P4A_DIR=$(python -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])")
+        echo "P4A recipes at: $P4A_DIR"
+        rm -rf $P4A_DIR/pyjnius
+        echo "Рецепт pyjnius удалён!"
+
+    - name: Качаем SDK и NDK
+      run: |
+        mkdir -p ~/android-sdk
+        cd ~/android-sdk
+        
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip
-        rm -rf cmdline-tools/latest
         mkdir -p cmdline-tools/latest
         mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-        mv cmdline-tools cmdline-tools/latest 2>/dev/null || true
         
-        # NDK
-        wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+        wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
         unzip -q android-ndk-r25b-linux.zip
-        
-        # Пути
-        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "ANDROIDNDK=$HOME/android-sdk/android-ndk-r25b" >> $GITHUB_ENV
 
-    - name: Принимаем лицензии и ставим платформы
+    - name: Принимаем лицензии
       run: |
-        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
-        yes | sdkmanager --licenses --sdk_root=$HOME/android-sdk
-        sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
+        cd ~/android-sdk
+        yes | ./cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$HOME/android-sdk
 
-    - name: Сборка
+    - name: Ставим платформы
       run: |
-        rm -rf ~/.local/share/python-for-android
+        cd ~/android-sdk
+        ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
+
+    - name: Патчим Kivy (убираем long)
+      run: |
+        # Ждём пока появится файл (до 60 секунд)
+        for i in {1..12}; do
+          KIVY_PYX=$(find ~/.local/share/python-for-android/build/ -name "weakproxy.pyx" 2>/dev/null | head -1)
+          if [ -n "$KIVY_PYX" ]; then
+            echo "✅ Найден weakproxy.pyx: $KIVY_PYX"
+            sed -i 's/return long(/return int(/g' "$KIVY_PYX"
+            echo "✅ Патч применён"
+            break
+          fi
+          echo "⏳ Ожидание файла... ($i/12)"
+          sleep 5
+        done
+
+    - name: Сборка APK
+      env:
+        ANDROIDSDK: /home/runner/android-sdk
+        ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
+      run: |
+        # ФИНАЛЬНАЯ ЗАЧИСТКА
+        rm -rf ~/.local/share/python-for-android/dists/
         
         p4a apk --private . \
-          --package=com.example.myapp \
+          --package=org.example.myapp \
           --name "My App" \
           --version 0.1 \
           --bootstrap=sdl2 \
