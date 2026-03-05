@@ -31,14 +31,25 @@ jobs:
           libncurses5-dev libncursesw5-dev cmake \
           libffi-dev libssl-dev libtinfo5
 
-    - name: Install Python deps
+    - name: ПОЛНАЯ ЗАЧИСТКА P4A
       run: |
-        pip install --user cython virtualenv
-        pip install --user python-for-android
+        # Удаляем всё, что связано с p4a и pyjnius
+        rm -rf ~/.local/share/python-for-android
+        rm -rf ~/.local/lib/python3.9/site-packages/pythonforandroid
+        rm -rf ~/.local/bin/p4a
+        pip uninstall -y python-for-android cython virtualenv pyjnius || true
         
-        # Удаляем pyjnius если есть
+        # Удаляем jnius из проекта если есть
         rm -rf ${{ github.workspace }}/jnius
-        pip uninstall -y pyjnius || true
+        rm -rf ${{ github.workspace }}/pyjnius
+        find ${{ github.workspace }} -name "*jnius*" -type d -exec rm -rf {} + 2>/dev/null || true
+
+    - name: Install Python deps ЗАНОВО
+      run: |
+        pip install --user --upgrade pip
+        pip install --user cython==0.29.36  # СТАРАЯ СТАБИЛЬНАЯ ВЕРСИЯ
+        pip install --user virtualenv
+        pip install --user python-for-android==2024.1.21
 
     - name: Setup Android SDK
       run: |
@@ -74,15 +85,13 @@ jobs:
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager $ANDROIDSDK/tools/bin/sdkmanager
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/avdmanager $ANDROIDSDK/tools/bin/avdmanager
         
-        # УБИРАЕМ jnius ИЗ ПРОЕКТА (если есть)
-        rm -rf ${{ github.workspace }}/jnius
-        rm -rf ${{ github.workspace }}/pyjnius
+        # ЕЩЁ РАЗ УБЕЖДАЕМСЯ ЧТО JNIUS НЕТ
+        find ${{ github.workspace }} -name "jnius" -type d
         
-        # Чистим кэш p4a
-        rm -rf ~/.local/share/python-for-android/build/
-        rm -rf ~/.local/share/python-for-android/dists/
+        # Чистим кэш
+        rm -rf ~/.local/share/python-for-android/
         
-        # Сборка БЕЗ pyjnius
+        # Сборка С ПОЛНЫМ ИГНОРИРОВАНИЕМ setup.py
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
@@ -97,7 +106,8 @@ jobs:
           --minsdk=21 \
           --color=always \
           --sdk-manager-path=$ANDROIDSDK/tools/bin/sdkmanager \
-          --ignore-setup-py
+          --ignore-setup-py \
+          --no-deps
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
