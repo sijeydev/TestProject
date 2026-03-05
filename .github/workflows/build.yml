@@ -34,37 +34,36 @@ jobs:
         pip install --user cython virtualenv
         pip install --user python-for-android
 
-    - name: Качаем SDK и NDK руками
+    - name: Качаем SDK и NDK
       run: |
-        cd /home/runner
-        mkdir -p android-sdk
-        cd android-sdk
+        mkdir -p ~/android-sdk
+        cd ~/android-sdk
         
-        # SDK
+        # SDK tools
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-        unzip commandlinetools-linux-11076708_latest.zip
+        unzip -q commandlinetools-linux-11076708_latest.zip
         mkdir -p cmdline-tools
         mv cmdline-tools cmdline-tools/latest 2>/dev/null || true
         
-        # NDK 25b
+        # NDK
         wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-        unzip android-ndk-r25b-linux.zip
+        unzip -q android-ndk-r25b-linux.zip
         
-        # Пути
-        echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "ANDROIDNDK=$HOME/android-sdk/android-ndk-r25b" >> $GITHUB_ENV
-        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        # Принимаем лицензии
+        yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+        
+        # Ставим платформы
+        ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2"
 
-    - name: Сборка APK через p4a
+    - name: Сборка APK
       env:
-        ANDROIDSDK: /home/runner/android-sdk
-        ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
+        ANDROIDSDK: ~/android-sdk
+        ANDROIDNDK: ~/android-sdk/android-ndk-r25b
       run: |
-        # Чистим кэш p4a от pyjnius
+        export PATH=$PATH:~/android-sdk/cmdline-tools/latest/bin
         rm -rf ~/.local/share/python-for-android/build/
         rm -rf ~/.local/share/python-for-android/dists/
         
-        # Сборка
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
