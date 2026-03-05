@@ -37,11 +37,9 @@ jobs:
         
         # Удаляем pyjnius
         P4A_DIR=$(python -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])")
-        echo "P4A recipes at: $P4A_DIR"
         rm -rf $P4A_DIR/pyjnius
         rm -rf ~/.local/share/python-for-android/packages/pyjnius
         rm -rf ~/.local/share/python-for-android/build/other_builds/pyjnius*
-        echo "pyjnius уничтожен"
 
     - name: Качаем SDK и NDK
       run: |
@@ -86,8 +84,31 @@ jobs:
           --android-api=33 \
           --minsdk=21
 
+    - name: Найти и подготовить APK
+      run: |
+        echo "🔍 Ищем APK..."
+        mkdir -p apk_export
+        find ~/.local/share/python-for-android -name "*.apk" -exec cp {} apk_export/ \;
+        find . -name "*.apk" -exec cp {} apk_export/ \;
+        
+        echo "📦 Найденные APK:"
+        ls -la apk_export/
+        
+        # Если APK найден, переименовываем для красоты
+        if [ -f apk_export/*.apk ]; then
+          cp apk_export/*.apk ./myapp.apk 2>/dev/null || true
+          echo "✅ APK готов: myapp.apk"
+        else
+          echo "❌ APK не найден!"
+          exit 1
+        fi
+
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-apk
-        path: bin/*.apk
+        name: MyApp-APK
+        path: |
+          apk_export/*.apk
+          myapp.apk
+        if-no-files-found: error
+        retention-days: 30
