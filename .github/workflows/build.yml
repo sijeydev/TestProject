@@ -30,17 +30,22 @@ jobs:
         pip install --user --upgrade pip
         pip install --user cython virtualenv buildozer
 
-    - name: Fix buildozer.spec (если надо)
+    - name: Fix buildozer.spec
       run: |
-        # Проверяем и добавляем build_tools_version если нет
-        if ! grep -q "android.build_tools_version" buildozer.spec; then
-          echo "android.build_tools_version = 33.0.2" >> buildozer.spec
-        fi
-        
-        # Меняем версию если она 37
-        sed -i 's/android.build_tools_version = .*/android.build_tools_version = 33.0.2/g' buildozer.spec
-        sed -i 's/android.sdk = .*/android.sdk = 33/g' buildozer.spec
+        # Жёстко фиксируем версии
         sed -i 's/android.ndk = .*/android.ndk = 25b/g' buildozer.spec
+        sed -i 's/android.sdk = .*/android.sdk = 33/g' buildozer.spec
+        sed -i 's/android.build_tools_version = .*/android.build_tools_version = 33.0.2/g' buildozer.spec
+        sed -i 's/android.ndk_path = .*/android.ndk_path =/g' buildozer.spec
+        sed -i 's/android.sdk_path = .*/android.sdk_path =/g' buildozer.spec
+        
+        echo "=== Файл buildozer.spec после правок ==="
+        grep -E "android.(ndk|sdk|build_tools_version)" buildozer.spec
+
+    - name: Clean buildozer cache
+      run: |
+        rm -rf ~/.buildozer
+        rm -rf bin/
 
     - name: Build with Buildozer
       run: |
