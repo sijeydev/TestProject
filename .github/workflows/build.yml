@@ -35,11 +35,14 @@ jobs:
       run: |
         pip install --user cython virtualenv
         pip install --user python-for-android
+        
+        # Удаляем pyjnius если есть
+        rm -rf ${{ github.workspace }}/jnius
+        pip uninstall -y pyjnius || true
 
     - name: Setup Android SDK
       run: |
         cd ~
-        # Чистая установка
         rm -rf ~/android-sdk
         rm -rf ~/cmdline-tools
         
@@ -52,16 +55,13 @@ jobs:
         SDK_PATH=$(realpath ~/android-sdk)
         echo "SDK_PATH=$SDK_PATH" >> $GITHUB_ENV
         
-        # Принимаем лицензии
         yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
         
-        # Ставим компоненты
         ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" \
                    "build-tools;33.0.2" \
                    "ndk;25.2.9519653" \
                    "platform-tools"
         
-        # Сохраняем переменные
         echo "ANDROIDSDK=$SDK_PATH" >> $GITHUB_ENV
         echo "ANDROIDNDK=$SDK_PATH/ndk/25.2.9519653" >> $GITHUB_ENV
         echo "$SDK_PATH/cmdline-tools/latest/bin" >> $GITHUB_PATH
@@ -69,22 +69,20 @@ jobs:
 
     - name: Build APK
       run: |
-        # КОСТЫЛЬ С АБСОЛЮТНЫМ ПУТЕМ
+        # КОСТЫЛЬ ДЛЯ SDK
         mkdir -p $ANDROIDSDK/tools/bin
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager $ANDROIDSDK/tools/bin/sdkmanager
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/avdmanager $ANDROIDSDK/tools/bin/avdmanager
         
-        # Проверка
-        echo "=== ФИНАЛЬНАЯ ПРОВЕРКА ==="
-        ls -la $ANDROIDSDK/tools/bin/
-        echo "=== АБСОЛЮТНЫЙ ПУТЬ ==="
-        readlink -f $ANDROIDSDK/tools/bin/sdkmanager
+        # УБИРАЕМ jnius ИЗ ПРОЕКТА (если есть)
+        rm -rf ${{ github.workspace }}/jnius
+        rm -rf ${{ github.workspace }}/pyjnius
         
-        # Чистим кэш
+        # Чистим кэш p4a
         rm -rf ~/.local/share/python-for-android/build/
         rm -rf ~/.local/share/python-for-android/dists/
         
-        # Сборка
+        # Сборка БЕЗ pyjnius
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
@@ -98,7 +96,8 @@ jobs:
           --android-api=33 \
           --minsdk=21 \
           --color=always \
-          --sdk-manager-path=$ANDROIDSDK/tools/bin/sdkmanager
+          --sdk-manager-path=$ANDROIDSDK/tools/bin/sdkmanager \
+          --ignore-setup-py
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
