@@ -15,7 +15,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.8'   # <--- ЕДИНСТВЕННОЕ РЕШЕНИЕ
 
     - name: Set up Java
       uses: actions/setup-java@v4
@@ -28,16 +28,11 @@ jobs:
         sudo rm -rf /usr/local/lib/android/sdk/ndk
         sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
 
-    - name: Ставим p4a и ломаем рецепт jnius
+    - name: Ставим p4a
       run: |
         pip install --user --upgrade pip
         pip install --user cython virtualenv
         pip install --user python-for-android
-        
-        P4A_DIR=$(python -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])")
-        echo "P4A recipes at: $P4A_DIR"
-        rm -rf $P4A_DIR/pyjnius
-        echo "Рецепт pyjnius удалён!"
 
     - name: Качаем SDK и NDK
       run: |
@@ -62,15 +57,13 @@ jobs:
         cd ~/android-sdk
         ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
 
-    - name: Сборка APK (с патчем в реальном времени)
+    - name: Сборка APK
       env:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
-        # Чистим старые сборки
-        rm -rf ~/.local/share/python-for-android/dists/
+        rm -rf ~/.local/share/python-for-android
         
-        # Запускаем сборку в фоне, но следим за появлением weakproxy.pyx
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
@@ -82,26 +75,7 @@ jobs:
           --ndk-dir=$ANDROIDNDK \
           --sdk-dir=$ANDROIDSDK \
           --android-api=33 \
-          --minsdk=21 &
-        
-        # Даём p4a время создать структуру папок
-        sleep 30
-        
-        # Ищем и патим файл каждые 5 секунд, пока он не появится
-        for i in {1..30}; do
-          KIVY_PYX=$(find ~/.local/share/python-for-android/build/ -name "weakproxy.pyx" 2>/dev/null | head -1)
-          if [ -n "$KIVY_PYX" ]; then
-            echo "✅ Найден weakproxy.pyx: $KIVY_PYX"
-            sed -i 's/return long(/return int(/g' "$KIVY_PYX"
-            echo "✅ Патч применён"
-            break
-          fi
-          echo "⏳ Ожидание файла... ($i/30)"
-          sleep 5
-        done
-        
-        # Ждём завершения p4a
-        wait
+          --minsdk=21
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
