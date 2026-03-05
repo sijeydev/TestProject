@@ -12,6 +12,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Удаляем jnius из проекта
+      run: |
+        rm -rf jnius
+        rm -rf pyjnius
+        echo "Папки jnius удалены"
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -34,7 +40,7 @@ jobs:
         pip install --user cython virtualenv
         pip install --user python-for-android
 
-    - name: Качаем SDK и NDK с проверкой
+    - name: Качаем SDK и NDK
       run: |
         mkdir -p ~/android-sdk
         cd ~/android-sdk
@@ -43,39 +49,22 @@ jobs:
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip
         
-        # ПОСМОТРИМ что внутри
-        echo "=== СОДЕРЖИМОЕ ПОСЛЕ РАСПАКОВКИ ==="
-        ls -la
-        echo "=== ЧТО ВНУТРИ cmdline-tools ==="
-        ls -la cmdline-tools/
-        echo "=== ИЩЕМ sdkmanager ==="
-        find . -name "sdkmanager" -type f
-        
-        # Создаём правильную структуру
+        # Создаём структуру с latest
         mkdir -p cmdline-tools/latest
         mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-        mv cmdline-tools cmdline-tools/latest 2>/dev/null || true
         
         # NDK
         wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
         unzip -q android-ndk-r25b-linux.zip
-        
-        # ФИНАЛЬНАЯ ПРОВЕРКА
-        echo "=== ФИНАЛЬНАЯ СТРУКТУРА ==="
-        ls -la cmdline-tools/latest/bin/
-        echo "=== sdkmanager найден? ==="
-        ls -la cmdline-tools/latest/bin/sdkmanager || echo "НЕТ СДКМЕНЕДЖЕРА!"
 
     - name: Принимаем лицензии
       run: |
         cd ~/android-sdk
-        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
         yes | ./cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$HOME/android-sdk
 
     - name: Ставим платформы
       run: |
         cd ~/android-sdk
-        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
         ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
 
     - name: Сборка APK
@@ -83,6 +72,9 @@ jobs:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
+        # Ещё раз удаляем jnius на всякий случай
+        rm -rf jnius pyjnius
+        
         export PATH=$PATH:/home/runner/android-sdk/cmdline-tools/latest/bin
         rm -rf ~/.local/share/python-for-android/build/
         rm -rf ~/.local/share/python-for-android/dists/
