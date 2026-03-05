@@ -15,7 +15,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.8'   # <--- ЕДИНСТВЕННОЕ РЕШЕНИЕ
+        python-version: '3.8'
 
     - name: Set up Java
       uses: actions/setup-java@v4
@@ -57,7 +57,7 @@ jobs:
         cd ~/android-sdk
         ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
 
-    - name: Сборка APK
+    - name: Сборка APK (Kivy 2.2.1)
       env:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
@@ -69,7 +69,7 @@ jobs:
           --name "My App" \
           --version 0.1 \
           --bootstrap=sdl2 \
-          --requirements=python3,kivy \
+          --requirements=python3,kivy==2.2.1 \
           --arch=arm64-v8a \
           --release \
           --ndk-dir=$ANDROIDNDK \
