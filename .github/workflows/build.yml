@@ -17,31 +17,35 @@ jobs:
       with:
         python-version: '3.9'
 
-    - name: Install dependencies
+    - name: Install system deps
       run: |
         sudo apt update
         sudo apt install -y git wget unzip python3-pip \
           autoconf libtool pkg-config zlib1g-dev \
           libncurses5-dev libncursesw5-dev cmake \
           libffi-dev libssl-dev libtinfo5
-        
+
+    - name: Install buildozer
+      run: |
         pip install --user --upgrade pip
-        pip install --user cython virtualenv
-        pip install --user buildozer
+        pip install --user cython virtualenv buildozer
+
+    - name: Fix buildozer.spec (если надо)
+      run: |
+        # Проверяем и добавляем build_tools_version если нет
+        if ! grep -q "android.build_tools_version" buildozer.spec; then
+          echo "android.build_tools_version = 33.0.2" >> buildozer.spec
+        fi
+        
+        # Меняем версию если она 37
+        sed -i 's/android.build_tools_version = .*/android.build_tools_version = 33.0.2/g' buildozer.spec
+        sed -i 's/android.sdk = .*/android.sdk = 33/g' buildozer.spec
+        sed -i 's/android.ndk = .*/android.ndk = 25b/g' buildozer.spec
 
     - name: Build with Buildozer
       run: |
-        # Создаём spec файл если его нет
-        if [ ! -f buildozer.spec ]; then
-          buildozer init
-          # Меняем настройки
-          sed -i 's/requirements = python3,kivy/requirements = python3,kivy/g' buildozer.spec
-          sed -i 's/android.ndk = .*/android.ndk = 25b/g' buildozer.spec
-          sed -i 's/android.sdk = .*/android.sdk = 33/g' buildozer.spec
-        fi
-        
-        # Собираем
-        buildozer android debug
+        # Принудительно принимаем лицензии
+        yes | buildozer android debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
