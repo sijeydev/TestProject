@@ -49,16 +49,11 @@ jobs:
         mkdir -p android-sdk/cmdline-tools
         mv cmdline-tools android-sdk/cmdline-tools/latest
         
-        # Добавляем в PATH СРАЗУ
-        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
-        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
-        
         # Принимаем лицензии
-        yes | sdkmanager --licenses
+        yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
         
         # Ставим компоненты
-        sdkmanager "platforms;android-33" \
+        ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" \
                    "build-tools;33.0.2" \
                    "ndk;25.2.9519653" \
                    "platform-tools"
@@ -67,22 +62,26 @@ jobs:
         echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
         echo "ANDROIDNDK=$HOME/android-sdk/ndk/25.2.9519653" >> $GITHUB_ENV
         
-        # ПРОВЕРЯЕМ
-        echo "=== ПРОВЕРКА SDK ==="
-        ls -la $HOME/android-sdk/cmdline-tools/latest/bin/
-        echo "=== sdkmanager найден? ==="
-        find $HOME/android-sdk -name "sdkmanager" -type f
+        # Добавляем ВСЕ возможные пути
+        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$HOME/android-sdk/tools/bin" >> $GITHUB_PATH
+        echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
     - name: Build APK
       env:
         ANDROIDSDK: $HOME/android-sdk
         ANDROIDNDK: $HOME/android-sdk/ndk/25.2.9519653
+        ANDROID_HOME: $HOME/android-sdk
       run: |
-        # ЯВНО добавляем путь ещё раз
-        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
+        # КОСТЫЛИЩЕ - создаем symlink там где ищет p4a
+        mkdir -p $ANDROIDSDK/tools/bin
+        ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager $ANDROIDSDK/tools/bin/sdkmanager
+        ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/avdmanager $ANDROIDSDK/tools/bin/avdmanager
         
-        # Проверяем что sdkmanager виден
-        which sdkmanager || echo "sdkmanager НЕ НАЙДЕН!"
+        # Проверка
+        echo "=== ФИНАЛЬНАЯ ПРОВЕРКА ==="
+        ls -la $ANDROIDSDK/tools/bin/ || echo "tools/bin не создан"
+        find $ANDROIDSDK -name "sdkmanager" | head -3
         
         # Чистим кэш
         rm -rf ~/.local/share/python-for-android/build/
