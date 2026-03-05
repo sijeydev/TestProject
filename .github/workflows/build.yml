@@ -49,6 +49,9 @@ jobs:
         mkdir -p android-sdk/cmdline-tools
         mv cmdline-tools android-sdk/cmdline-tools/latest
         
+        SDK_PATH=$(realpath ~/android-sdk)
+        echo "SDK_PATH=$SDK_PATH" >> $GITHUB_ENV
+        
         # Принимаем лицензии
         yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
         
@@ -59,29 +62,23 @@ jobs:
                    "platform-tools"
         
         # Сохраняем переменные
-        echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "ANDROIDNDK=$HOME/android-sdk/ndk/25.2.9519653" >> $GITHUB_ENV
-        
-        # Добавляем ВСЕ возможные пути
-        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$HOME/android-sdk/tools/bin" >> $GITHUB_PATH
-        echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+        echo "ANDROIDSDK=$SDK_PATH" >> $GITHUB_ENV
+        echo "ANDROIDNDK=$SDK_PATH/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "$SDK_PATH/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$SDK_PATH/platform-tools" >> $GITHUB_PATH
 
     - name: Build APK
-      env:
-        ANDROIDSDK: $HOME/android-sdk
-        ANDROIDNDK: $HOME/android-sdk/ndk/25.2.9519653
-        ANDROID_HOME: $HOME/android-sdk
       run: |
-        # КОСТЫЛИЩЕ - создаем symlink там где ищет p4a
+        # КОСТЫЛЬ С АБСОЛЮТНЫМ ПУТЕМ
         mkdir -p $ANDROIDSDK/tools/bin
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager $ANDROIDSDK/tools/bin/sdkmanager
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/avdmanager $ANDROIDSDK/tools/bin/avdmanager
         
         # Проверка
         echo "=== ФИНАЛЬНАЯ ПРОВЕРКА ==="
-        ls -la $ANDROIDSDK/tools/bin/ || echo "tools/bin не создан"
-        find $ANDROIDSDK -name "sdkmanager" | head -3
+        ls -la $ANDROIDSDK/tools/bin/
+        echo "=== АБСОЛЮТНЫЙ ПУТЬ ==="
+        readlink -f $ANDROIDSDK/tools/bin/sdkmanager
         
         # Чистим кэш
         rm -rf ~/.local/share/python-for-android/build/
@@ -100,7 +97,8 @@ jobs:
           --sdk-dir=$ANDROIDSDK \
           --android-api=33 \
           --minsdk=21 \
-          --color=always
+          --color=always \
+          --sdk-manager-path=$ANDROIDSDK/tools/bin/sdkmanager
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
