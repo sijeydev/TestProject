@@ -35,41 +35,47 @@ jobs:
       run: |
         pip install --user --upgrade pip
         pip install --user cython virtualenv
-        pip install --user python-for-android buildozer
+        pip install --user python-for-android
 
     - name: Setup Android SDK
       run: |
         cd ~
-        # Ставим SDK через sdkmanager
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -o commandlinetools-linux-11076708_latest.zip
         mkdir -p android-sdk/cmdline-tools
         mv cmdline-tools android-sdk/cmdline-tools/latest
         
-        # Принимаем лицензии
         yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-        
-        # Ставим всё нужное
         ~/android-sdk/cmdline-tools/latest/bin/sdkmanager \
           "platforms;android-33" \
           "build-tools;33.0.2" \
           "ndk;25.2.9519653"
         
-        # Пути
         echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
         echo "ANDROIDNDK=$HOME/android-sdk/ndk/25.2.9519653" >> $GITHUB_ENV
         echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
     - name: Build APK
+      env:
+        ANDROIDSDK: ~/android-sdk
+        ANDROIDNDK: ~/android-sdk/ndk/25.2.9519653
       run: |
-        # СОЗДАЁМ ССЫЛКИ КУДА НАДО
+        # СОЗДАЁМ ССЫЛКИ
         mkdir -p $ANDROIDSDK/tools/bin
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager $ANDROIDSDK/tools/bin/sdkmanager
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/avdmanager $ANDROIDSDK/tools/bin/avdmanager
         
-        # ПРОВЕРКА
-        which sdkmanager
-        ls -la $ANDROIDSDK/tools/bin/
+        # УДАЛЯЕМ PYJNIUS ИЗ КЭША НАХРЕН
+        rm -rf ~/.local/share/python-for-android/build/other_builds/pyjnius-sdl2
+        rm -rf ~/.local/share/python-for-android/packages/pyjnius
+        rm -rf ~/.local/share/python-for-android/dists/unnamed_dist_1
+        
+        # ЧИСТИМ ВЕСЬ КЭШ P4A
+        rm -rf ~/.local/share/python-for-android/build/
+        rm -rf ~/.local/share/python-for-android/dists/
+        
+        # ПРОВЕРЯЕМ ЧТО JNIUS НЕТ
+        find ~/.local/share/python-for-android -name "*jnius*" -type d 2>/dev/null || echo "jnius удалён"
         
         # СБОРКА
         p4a apk --private . \
