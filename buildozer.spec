@@ -105,7 +105,14 @@ fullscreen = 0
 
 # (int) Minimum API your APK / AAB will support.
 #android.minapi = 21
+# (int) Android SDK version to use
+android.sdk = 33
 
+# (str) Android NDK version to use
+android.ndk = 25.2.9519653
+
+# (str) Android build tools version (optional)
+android.build_tools_version = 33.0.2
 # (int) Android SDK version to use
 #android.sdk = 20
 
