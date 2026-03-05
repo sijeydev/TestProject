@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # Используем 22.04 - там всё есть из коробки
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout code
@@ -35,7 +35,7 @@ jobs:
           autoconf libtool pkg-config \
           zlib1g-dev libncurses5-dev libncursesw5-dev \
           cmake libffi-dev libssl-dev \
-          libtinfo5  # В 22.04 этот пакет есть в репах!
+          libtinfo5
 
     - name: Install Python dependencies
       run: |
@@ -43,24 +43,53 @@ jobs:
         pip install --user cython virtualenv
         pip install --user python-for-android
 
-    - name: Setup Android SDK and NDK
+    # ВАЖНО: Сначала создаём папки
+    - name: Create SDK directories
+      run: |
+        mkdir -p ${{ github.workspace }}/sdk
+        mkdir -p ${{ github.workspace }}/ndk
+
+    - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
-        cmdline-tools-version: 12266719  # tools version 16.0
+        cmdline-tools-version: 11076708
         ndk-version: 26.3.11579264
         ndk-install-path: ${{ github.workspace }}/ndk
         sdk-install-path: ${{ github.workspace }}/sdk
 
-    - name: Add sdkmanager to PATH
+    # НОВО: Качаем платформы через sdkmanager
+    - name: Install Android SDK platforms
       run: |
-        SDK_ROOT="${{ github.workspace }}/sdk"
-        CMDLINE_TOOLS_PATH=$(find "$SDK_ROOT" -type d -path "*/cmdline-tools/*/bin" | head -n 1)
+        export PATH=$PATH:${{ github.workspace }}/sdk/cmdline-tools/latest/bin
+        # Ищем sdkmanager
+        SDKMANAGER=$(find ${{ github.workspace }}/sdk -name "sdkmanager" | head -n 1)
         
-        if [ -n "$CMDLINE_TOOLS_PATH" ]; then
-          echo "Found sdkmanager in: $CMDLINE_TOOLS_PATH"
-          echo "$CMDLINE_TOOLS_PATH" >> $GITHUB_PATH
+        if [ -z "$SDKMANAGER" ]; then
+          echo "sdkmanager not found!"
+          exit 1
+        fi
+        
+        # Принимаем лицензии
+        yes | $SDKMANAGER --licenses
+        
+        # Ставим нужные платформы
+        $SDKMANAGER "platforms;android-33" "build-tools;33.0.2" "platform-tools"
+        
+        # Добавляем в PATH папку platform-tools (для adb и т.д.)
+        PLATFORM_TOOLS=$(find ${{ github.workspace }}/sdk -type d -name "platform-tools" | head -n 1)
+        if [ -n "$PLATFORM_TOOLS" ]; then
+          echo "$PLATFORM_TOOLS" >> $GITHUB_PATH
+        fi
+
+    # Добавляем cmdline-tools в PATH
+    - name: Add Android tools to PATH
+      run: |
+        CMDLINE_TOOLS_BIN=$(find ${{ github.workspace }}/sdk -type d -path "*/cmdline-tools/*/bin" | head -n 1)
+        if [ -n "$CMDLINE_TOOLS_BIN" ]; then
+          echo "Found tools in: $CMDLINE_TOOLS_BIN"
+          echo "$CMDLINE_TOOLS_BIN" >> $GITHUB_PATH
         else
-          echo "::error::Could not find cmdline-tools/bin folder!"
+          echo "::error::Could not find cmdline-tools/bin!"
           exit 1
         fi
 
@@ -72,8 +101,8 @@ jobs:
         NDKAPI: 21
       run: |
         p4a apk --private . \
-          --package=dev.sijey.testapp \
-          --name "Test App" \
+          --package=org.example.myapp \
+          --name "My Kivy App" \
           --version 0.1 \
           --bootstrap=sdl2 \
           --requirements=python3,kivy,plyer,pyjnius,android \
