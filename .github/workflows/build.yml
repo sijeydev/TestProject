@@ -28,27 +28,20 @@ jobs:
         sudo rm -rf /usr/local/lib/android/sdk/ndk
         sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
 
-    - name: Ставим p4a и УБИВАЕМ pyjnius
+    - name: Ставим p4a со старым Cython
       run: |
         pip install --user --upgrade pip
-        pip install --user cython virtualenv
+        pip install --user cython==0.29.36
+        pip install --user virtualenv
         pip install --user python-for-android
         
-        # Находим где лежат рецепты
+        # Удаляем pyjnius
         P4A_DIR=$(python -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])")
         echo "P4A recipes at: $P4A_DIR"
-        
-        # УДАЛЯЕМ РЕЦЕПТ ФИЗИЧЕСКИ
         rm -rf $P4A_DIR/pyjnius
-        echo "✅ Рецепт pyjnius удалён!"
-        
-        # УДАЛЯЕМ ИЗ КЭША
         rm -rf ~/.local/share/python-for-android/packages/pyjnius
         rm -rf ~/.local/share/python-for-android/build/other_builds/pyjnius*
-        
-        # ПРОВЕРЯЕМ
-        echo "🔍 Проверка: остались ли рецепты pyjnius?"
-        find ~/.local/share/python-for-android -name "*pyjnius*" -type d 2>/dev/null || echo "✅ Чисто, pyjnius не найден"
+        echo "pyjnius уничтожен"
 
     - name: Качаем SDK и NDK
       run: |
@@ -73,12 +66,11 @@ jobs:
         cd ~/android-sdk
         ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
 
-    - name: Сборка APK (Kivy 2.2.1)
+    - name: Сборка APK
       env:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
-        # ФИНАЛЬНАЯ ЗАЧИСТКА
         rm -rf ~/.local/share/python-for-android
         
         p4a apk --private . \
