@@ -25,27 +25,42 @@ jobs:
           libncurses5-dev libncursesw5-dev cmake \
           libffi-dev libssl-dev libtinfo5
 
-    - name: УДАЛЯЕМ ГЛОБАЛЬНЫЙ NDK
-      run: |
-        sudo rm -rf /usr/local/lib/android/sdk/ndk
-        sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
-
     - name: Install buildozer
       run: |
         pip install --user --upgrade pip
         pip install --user cython virtualenv buildozer
 
-    - name: КАЧАЕМ NDK ВРУЧНУЮ (чтобы buildozer не мучился)
+    - name: Полный ручной расклад SDK/NDK
       run: |
+        # Создаём структуру папок в точности как ждёт buildozer
         mkdir -p ~/.buildozer/android/platform
         cd ~/.buildozer/android/platform
+        
+        # Качаем ВСЁ вручную
+        wget https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+        tar -xzf apache-ant-1.9.4-bin.tar.gz
+        
+        wget https://dl.google.com/android/repository/commandlinetools-linux-6514223_latest.zip
+        mkdir -p android-sdk
+        unzip -q commandlinetools-linux-6514223_latest.zip -d android-sdk/cmdline-tools
+        mv android-sdk/cmdline-tools/cmdline-tools android-sdk/cmdline-tools/latest 2>/dev/null || true
+        
         wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-        echo "NDK скачан"
+        unzip -q android-ndk-r25b-linux.zip
+        
+        # Прописываем пути
+        echo "ANDROIDSDK=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
+        echo "ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r25b" >> $GITHUB_ENV
+        echo "$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        
+        # Проверка
+        ls -la $HOME/.buildozer/android/platform/
 
     - name: Build with Buildozer
       run: |
         rm -rf bin/
-        yes | buildozer android debug
+        # Запускаем без попыток скачать что-либо
+        buildozer android debug -- --sdk-dir=$ANDROIDSDK --ndk-dir=$ANDROIDNDK
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
