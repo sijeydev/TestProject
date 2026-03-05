@@ -34,43 +34,44 @@ jobs:
     - name: Install Python deps
       run: |
         pip install --user --upgrade pip
-        pip install --user cython==0.29.36
-        pip install --user virtualenv
-        pip install --user python-for-android
+        pip install --user cython virtualenv
+        pip install --user python-for-android buildozer
 
     - name: Setup Android SDK
       run: |
         cd ~
-        rm -rf ~/android-sdk
-        rm -rf ~/cmdline-tools
-        
+        # Ставим SDK через sdkmanager
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -o commandlinetools-linux-11076708_latest.zip
-        
         mkdir -p android-sdk/cmdline-tools
         mv cmdline-tools android-sdk/cmdline-tools/latest
         
+        # Принимаем лицензии
         yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
         
-        ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" \
-                   "build-tools;33.0.2" \
-                   "ndk;25.2.9519653" \
-                   "platform-tools"
+        # Ставим всё нужное
+        ~/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+          "platforms;android-33" \
+          "build-tools;33.0.2" \
+          "ndk;25.2.9519653"
         
-        echo "ANDROIDSDK=~/android-sdk" >> $GITHUB_ENV
-        echo "ANDROIDNDK=~/android-sdk/ndk/25.2.9519653" >> $GITHUB_ENV
-        echo "~/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        # Пути
+        echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "ANDROIDNDK=$HOME/android-sdk/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
     - name: Build APK
-      env:
-        ANDROIDSDK: ~/android-sdk
-        ANDROIDNDK: ~/android-sdk/ndk/25.2.9519653
       run: |
-        # Чистим кэш
-        rm -rf ~/.local/share/python-for-android/build/
-        rm -rf ~/.local/share/python-for-android/dists/
+        # СОЗДАЁМ ССЫЛКИ КУДА НАДО
+        mkdir -p $ANDROIDSDK/tools/bin
+        ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager $ANDROIDSDK/tools/bin/sdkmanager
+        ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/avdmanager $ANDROIDSDK/tools/bin/avdmanager
         
-        # Минимальная рабочая команда
+        # ПРОВЕРКА
+        which sdkmanager
+        ls -la $ANDROIDSDK/tools/bin/
+        
+        # СБОРКА
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
@@ -82,8 +83,7 @@ jobs:
           --ndk-dir=$ANDROIDNDK \
           --sdk-dir=$ANDROIDSDK \
           --android-api=33 \
-          --minsdk=21 \
-          --color=always
+          --minsdk=21
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
