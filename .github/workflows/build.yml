@@ -28,11 +28,27 @@ jobs:
         sudo rm -rf /usr/local/lib/android/sdk/ndk
         sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
 
-    - name: Ставим p4a
+    - name: Ставим p4a и УБИВАЕМ pyjnius
       run: |
         pip install --user --upgrade pip
         pip install --user cython virtualenv
         pip install --user python-for-android
+        
+        # Находим где лежат рецепты
+        P4A_DIR=$(python -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])")
+        echo "P4A recipes at: $P4A_DIR"
+        
+        # УДАЛЯЕМ РЕЦЕПТ ФИЗИЧЕСКИ
+        rm -rf $P4A_DIR/pyjnius
+        echo "✅ Рецепт pyjnius удалён!"
+        
+        # УДАЛЯЕМ ИЗ КЭША
+        rm -rf ~/.local/share/python-for-android/packages/pyjnius
+        rm -rf ~/.local/share/python-for-android/build/other_builds/pyjnius*
+        
+        # ПРОВЕРЯЕМ
+        echo "🔍 Проверка: остались ли рецепты pyjnius?"
+        find ~/.local/share/python-for-android -name "*pyjnius*" -type d 2>/dev/null || echo "✅ Чисто, pyjnius не найден"
 
     - name: Качаем SDK и NDK
       run: |
@@ -62,6 +78,7 @@ jobs:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
+        # ФИНАЛЬНАЯ ЗАЧИСТКА
         rm -rf ~/.local/share/python-for-android
         
         p4a apk --private . \
