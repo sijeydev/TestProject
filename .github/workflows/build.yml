@@ -28,7 +28,7 @@ jobs:
         sudo rm -rf /usr/local/lib/android/sdk/ndk
         sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
 
-    - name: Ставим p4a и ломаем рецепт pyjnius
+    - name: Ставим p4a и ломаем рецепт jnius
       run: |
         pip install --user --upgrade pip
         pip install --user cython virtualenv
