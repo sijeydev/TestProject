@@ -42,25 +42,30 @@ jobs:
         # SDK tools
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip
-        mkdir -p cmdline-tools
-        mv cmdline-tools cmdline-tools/latest 2>/dev/null || true
+        # ВНИМАНИЕ: папка уже называется cmdline-tools, не надо создавать лишнюю
+        chmod +x cmdline-tools/bin/*
         
         # NDK
         wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
         unzip -q android-ndk-r25b-linux.zip
         
-        # Принимаем лицензии
-        yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-        
-        # Ставим платформы
-        ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2"
+        # Пути
+        echo "$HOME/android-sdk/cmdline-tools/bin" >> $GITHUB_PATH
+        echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "ANDROIDNDK=$HOME/android-sdk/android-ndk-r25b" >> $GITHUB_ENV
+
+    - name: Принимаем лицензии и ставим платформы
+      run: |
+        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/bin
+        yes | sdkmanager --licenses
+        sdkmanager "platforms;android-33" "build-tools;33.0.2"
 
     - name: Сборка APK
       env:
-        ANDROIDSDK: ~/android-sdk
-        ANDROIDNDK: ~/android-sdk/android-ndk-r25b
+        ANDROIDSDK: /home/runner/android-sdk
+        ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
-        export PATH=$PATH:~/android-sdk/cmdline-tools/latest/bin
+        export PATH=$PATH:/home/runner/android-sdk/cmdline-tools/bin
         rm -rf ~/.local/share/python-for-android/build/
         rm -rf ~/.local/share/python-for-android/dists/
         
