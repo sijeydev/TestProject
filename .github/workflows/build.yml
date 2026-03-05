@@ -41,10 +41,13 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install --user cython virtualenv
-        pip install --user python-for-android==2024.1.21
+        pip install --user python-for-android
         
-        # Принудительно ставим свежую версию pyjnius из GitHub
-        pip install --user https://github.com/kivy/pyjnius/archive/master.zip
+        # Скачиваем свежий pyjnius
+        cd ${{ github.workspace }}
+        git clone https://github.com/kivy/pyjnius.git
+        # Копируем jnius в корень проекта (p4a его подхватит)
+        cp -r pyjnius/jnius ./
 
     - name: Install Android SDK manually
       run: |
@@ -61,10 +64,10 @@ jobs:
         # Добавляем в PATH
         export PATH=$PATH:${{ github.workspace }}/sdk/cmdline-tools/latest/bin
         
-        # Принимаем лицензии
+        # Принимаем лицензии автоматически
         yes | sdkmanager --licenses
         
-        # Используем NDK 25b
+        # Используем NDK 25b (единственная рабочая версия)
         sdkmanager "ndk;25.2.9519653" \
                    "platforms;android-33" \
                    "build-tools;33.0.2" \
@@ -88,6 +91,7 @@ jobs:
         rm -rf ~/.local/share/python-for-android/build/
         rm -rf ~/.local/share/python-for-android/dists/
         
+        # Собираем APK (pyjnius уже в папке jnius/)
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My Kivy App" \
