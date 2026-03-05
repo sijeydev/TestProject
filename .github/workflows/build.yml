@@ -31,23 +31,27 @@ jobs:
           libncurses5-dev libncursesw5-dev cmake \
           libffi-dev libssl-dev libtinfo5
 
-    - name: ПОЛНАЯ ЗАЧИСТКА P4A
+    - name: ПОЛНАЯ ЗАЧИСТКА
       run: |
-        # Удаляем всё, что связано с p4a и pyjnius
+        # Удаляем всё
         rm -rf ~/.local/share/python-for-android
         rm -rf ~/.local/lib/python3.9/site-packages/pythonforandroid
         rm -rf ~/.local/bin/p4a
         pip uninstall -y python-for-android cython virtualenv pyjnius || true
         
-        # Удаляем jnius из проекта если есть
+        # Удаляем jnius из проекта
         rm -rf ${{ github.workspace }}/jnius
         rm -rf ${{ github.workspace }}/pyjnius
-        find ${{ github.workspace }} -name "*jnius*" -type d -exec rm -rf {} + 2>/dev/null || true
+        
+        # Патчим p4a чтобы он забыл про pyjnius навсегда
+        mkdir -p ~/.local/share/python-for-android/packages/
+        touch ~/.local/share/python-for-android/packages/blacklist.txt
+        echo "pyjnius" > ~/.local/share/python-for-android/packages/blacklist.txt
 
-    - name: Install Python deps ЗАНОВО
+    - name: Install Python deps
       run: |
         pip install --user --upgrade pip
-        pip install --user cython==0.29.36  # СТАРАЯ СТАБИЛЬНАЯ ВЕРСИЯ
+        pip install --user cython==0.29.36
         pip install --user virtualenv
         pip install --user python-for-android==2024.1.21
 
@@ -85,13 +89,15 @@ jobs:
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager $ANDROIDSDK/tools/bin/sdkmanager
         ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/avdmanager $ANDROIDSDK/tools/bin/avdmanager
         
-        # ЕЩЁ РАЗ УБЕЖДАЕМСЯ ЧТО JNIUS НЕТ
-        find ${{ github.workspace }} -name "jnius" -type d
+        # Чистим кэш P4a
+        rm -rf ~/.local/share/python-for-android/build/
+        rm -rf ~/.local/share/python-for-android/dists/
         
-        # Чистим кэш
-        rm -rf ~/.local/share/python-for-android/
+        # УБИВАЕМ РЕЦЕПТ PYJNIUS
+        sed -i 's/recipe_dep_map\["pyjnius"\]/recipe_dep_map["pyjnius_DISABLED"]/g' \
+          ~/.local/lib/python3.9/site-packages/pythonforandroid/recipes/__init__.py 2>/dev/null || true
         
-        # Сборка С ПОЛНЫМ ИГНОРИРОВАНИЕМ setup.py
+        # Сборка
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
@@ -105,9 +111,9 @@ jobs:
           --android-api=33 \
           --minsdk=21 \
           --color=always \
-          --sdk-manager-path=$ANDROIDSDK/tools/bin/sdkmanager \
           --ignore-setup-py \
-          --no-deps
+          --no-deps \
+          --exclude-recipe=pyjnius
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
