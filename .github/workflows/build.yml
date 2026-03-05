@@ -68,7 +68,7 @@ jobs:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
-        # ФИНАЛЬНАЯ ЗАЧИСТКА
+        #ФИНАЛЬНАЯ ЗАЧИСТКА
         rm -rf ~/.local/share/python-for-android
         
         p4a apk --private . \
