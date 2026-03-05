@@ -34,7 +34,7 @@ jobs:
         pip install --user cython virtualenv
         pip install --user python-for-android
 
-    - name: Качаем SDK и NDK
+    - name: Качаем SDK и NDK с проверкой
       run: |
         mkdir -p ~/android-sdk
         cd ~/android-sdk
@@ -43,24 +43,40 @@ jobs:
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip
         
-        # Правильная структура: создаём latest и перемещаем
-        mkdir -p cmdline-tools
-        mv cmdline-tools cmdline-tools/latest 2>/dev/null || true
+        # ПОСМОТРИМ что внутри
+        echo "=== СОДЕРЖИМОЕ ПОСЛЕ РАСПАКОВКИ ==="
+        ls -la
+        echo "=== ЧТО ВНУТРИ cmdline-tools ==="
+        ls -la cmdline-tools/
+        echo "=== ИЩЕМ sdkmanager ==="
+        find . -name "sdkmanager" -type f
+        
+        # Создаём правильную структуру
+        mkdir -p cmdline-tools/latest
+        mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
         mv cmdline-tools cmdline-tools/latest 2>/dev/null || true
         
         # NDK
         wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
         unzip -q android-ndk-r25b-linux.zip
+        
+        # ФИНАЛЬНАЯ ПРОВЕРКА
+        echo "=== ФИНАЛЬНАЯ СТРУКТУРА ==="
+        ls -la cmdline-tools/latest/bin/
+        echo "=== sdkmanager найден? ==="
+        ls -la cmdline-tools/latest/bin/sdkmanager || echo "НЕТ СДКМЕНЕДЖЕРА!"
 
     - name: Принимаем лицензии
       run: |
+        cd ~/android-sdk
         export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
-        yes | sdkmanager --licenses --sdk_root=$HOME/android-sdk
+        yes | ./cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$HOME/android-sdk
 
     - name: Ставим платформы
       run: |
+        cd ~/android-sdk
         export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
-        sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
+        ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
 
     - name: Сборка APK
       env:
