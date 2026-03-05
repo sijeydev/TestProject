@@ -23,56 +23,55 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Удаляем глобальный NDK
+    - name: Устанавливаем зависимости
       run: |
-        sudo rm -rf /usr/local/lib/android/sdk/ndk
-        sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
+        sudo apt update
+        sudo apt install -y git wget unzip python3-pip \
+          autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev cmake \
+          libffi-dev libssl-dev libtinfo5
 
-    - name: Ставим p4a и ломаем рецепт jnius
+    - name: Ставим p4a
       run: |
         pip install --user --upgrade pip
         pip install --user cython virtualenv
         pip install --user python-for-android
-        
-        # Находим где лежит рецепт pyjnius и удаляем его нафиг
-        P4A_DIR=$(python -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])")
-        echo "P4A recipes at: $P4A_DIR"
-        rm -rf $P4A_DIR/pyjnius
-        echo "Рецепт pyjnius удалён!"
 
-    - name: Качаем SDK и NDK
+    - name: Качаем SDK и NDK руками
       run: |
-        mkdir -p ~/android-sdk
-        cd ~/android-sdk
+        cd ~
+        mkdir -p android-sdk
+        cd android-sdk
         
-        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        # SDK
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip
+        rm -rf cmdline-tools/latest
         mkdir -p cmdline-tools/latest
         mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+        mv cmdline-tools cmdline-tools/latest 2>/dev/null || true
         
-        wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+        # NDK
+        wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
         unzip -q android-ndk-r25b-linux.zip
+        
+        # Пути
+        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "ANDROIDNDK=$HOME/android-sdk/android-ndk-r25b" >> $GITHUB_ENV
 
-    - name: Принимаем лицензии
+    - name: Принимаем лицензии и ставим платформы
       run: |
-        cd ~/android-sdk
-        yes | ./cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$HOME/android-sdk
-
-    - name: Ставим платформы
-      run: |
-        cd ~/android-sdk
-        ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
+        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
+        yes | sdkmanager --licenses --sdk_root=$HOME/android-sdk
+        sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
 
     - name: Сборка APK
-      env:
-        ANDROIDSDK: /home/runner/android-sdk
-        ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
-        #ФИНАЛЬНАЯ ЗАЧИСТКА
         rm -rf ~/.local/share/python-for-android
         
         p4a apk --private . \
-          --package=org.example.myapp \
+          --package=com.example.myapp \
           --name "My App" \
           --version 0.1 \
           --bootstrap=sdl2 \
