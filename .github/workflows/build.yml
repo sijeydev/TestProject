@@ -23,36 +23,33 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: ПОЛНОСТЬЮ УДАЛЯЕМ ВЕСЬ P4A И КЭШ
-      run: |
-        rm -rf ~/.local/share/python-for-android
-        rm -rf ~/.local/lib/python3.9/site-packages/pythonforandroid
-        rm -rf ~/.local/bin/p4a
-        pip uninstall -y python-for-android cython virtualenv -y || true
-
-    - name: Ставим p4a заново
-      run: |
-        pip install --user --upgrade pip
-        pip install --user cython virtualenv
-        pip install --user python-for-android
-
     - name: Удаляем глобальный NDK
       run: |
         sudo rm -rf /usr/local/lib/android/sdk/ndk
         sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
+
+    - name: Ставим p4a и ломаем рецепт pyjnius
+      run: |
+        pip install --user --upgrade pip
+        pip install --user cython virtualenv
+        pip install --user python-for-android
+        
+        # Находим где лежит рецепт pyjnius и удаляем его нафиг
+        P4A_DIR=$(python -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])")
+        echo "P4A recipes at: $P4A_DIR"
+        rm -rf $P4A_DIR/pyjnius
+        echo "Рецепт pyjnius удалён!"
 
     - name: Качаем SDK и NDK
       run: |
         mkdir -p ~/android-sdk
         cd ~/android-sdk
         
-        # SDK
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip
         mkdir -p cmdline-tools/latest
         mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
         
-        # NDK
         wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
         unzip -q android-ndk-r25b-linux.zip
 
@@ -71,7 +68,9 @@ jobs:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
-        # Сборка с чистого листа
+        # ФИНАЛЬНАЯ ЗАЧИСТКА
+        rm -rf ~/.local/share/python-for-android
+        
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
