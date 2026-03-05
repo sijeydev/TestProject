@@ -31,29 +31,12 @@ jobs:
           libncurses5-dev libncursesw5-dev cmake \
           libffi-dev libssl-dev libtinfo5
 
-    - name: ПОЛНАЯ ЗАЧИСТКА
-      run: |
-        # Удаляем всё
-        rm -rf ~/.local/share/python-for-android
-        rm -rf ~/.local/lib/python3.9/site-packages/pythonforandroid
-        rm -rf ~/.local/bin/p4a
-        pip uninstall -y python-for-android cython virtualenv pyjnius || true
-        
-        # Удаляем jnius из проекта
-        rm -rf ${{ github.workspace }}/jnius
-        rm -rf ${{ github.workspace }}/pyjnius
-        
-        # Патчим p4a чтобы он забыл про pyjnius навсегда
-        mkdir -p ~/.local/share/python-for-android/packages/
-        touch ~/.local/share/python-for-android/packages/blacklist.txt
-        echo "pyjnius" > ~/.local/share/python-for-android/packages/blacklist.txt
-
     - name: Install Python deps
       run: |
         pip install --user --upgrade pip
         pip install --user cython==0.29.36
         pip install --user virtualenv
-        pip install --user python-for-android==2024.1.21
+        pip install --user python-for-android
 
     - name: Setup Android SDK
       run: |
@@ -67,9 +50,6 @@ jobs:
         mkdir -p android-sdk/cmdline-tools
         mv cmdline-tools android-sdk/cmdline-tools/latest
         
-        SDK_PATH=$(realpath ~/android-sdk)
-        echo "SDK_PATH=$SDK_PATH" >> $GITHUB_ENV
-        
         yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
         
         ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" \
@@ -77,27 +57,20 @@ jobs:
                    "ndk;25.2.9519653" \
                    "platform-tools"
         
-        echo "ANDROIDSDK=$SDK_PATH" >> $GITHUB_ENV
-        echo "ANDROIDNDK=$SDK_PATH/ndk/25.2.9519653" >> $GITHUB_ENV
-        echo "$SDK_PATH/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$SDK_PATH/platform-tools" >> $GITHUB_PATH
+        echo "ANDROIDSDK=~/android-sdk" >> $GITHUB_ENV
+        echo "ANDROIDNDK=~/android-sdk/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "~/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
     - name: Build APK
+      env:
+        ANDROIDSDK: ~/android-sdk
+        ANDROIDNDK: ~/android-sdk/ndk/25.2.9519653
       run: |
-        # КОСТЫЛЬ ДЛЯ SDK
-        mkdir -p $ANDROIDSDK/tools/bin
-        ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager $ANDROIDSDK/tools/bin/sdkmanager
-        ln -sf $ANDROIDSDK/cmdline-tools/latest/bin/avdmanager $ANDROIDSDK/tools/bin/avdmanager
-        
-        # Чистим кэш P4a
+        # Чистим кэш
         rm -rf ~/.local/share/python-for-android/build/
         rm -rf ~/.local/share/python-for-android/dists/
         
-        # УБИВАЕМ РЕЦЕПТ PYJNIUS
-        sed -i 's/recipe_dep_map\["pyjnius"\]/recipe_dep_map["pyjnius_DISABLED"]/g' \
-          ~/.local/lib/python3.9/site-packages/pythonforandroid/recipes/__init__.py 2>/dev/null || true
-        
-        # Сборка
+        # Минимальная рабочая команда
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
@@ -110,10 +83,7 @@ jobs:
           --sdk-dir=$ANDROIDSDK \
           --android-api=33 \
           --minsdk=21 \
-          --color=always \
-          --ignore-setup-py \
-          --no-deps \
-          --exclude-recipe=pyjnius
+          --color=always
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
