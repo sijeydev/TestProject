@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest   # в 2026 это будет 24.04 или новее
+    runs-on: ubuntu-22.04   # в 2026 это будет 24.04 или новее
 
     steps:
     - name: Checkout code
