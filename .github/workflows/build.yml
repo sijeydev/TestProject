@@ -12,12 +12,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Удаляем jnius из проекта
-      run: |
-        rm -rf jnius
-        rm -rf pyjnius
-        echo "Папки jnius удалены"
-
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -29,27 +23,32 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Удаляем глобальный NDK
+    - name: ПОЛНОСТЬЮ УДАЛЯЕМ ВЕСЬ P4A И КЭШ
       run: |
-        sudo rm -rf /usr/local/lib/android/sdk/ndk
-        sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
+        rm -rf ~/.local/share/python-for-android
+        rm -rf ~/.local/lib/python3.9/site-packages/pythonforandroid
+        rm -rf ~/.local/bin/p4a
+        pip uninstall -y python-for-android cython virtualenv -y || true
 
-    - name: Ставим p4a
+    - name: Ставим p4a заново
       run: |
         pip install --user --upgrade pip
         pip install --user cython virtualenv
         pip install --user python-for-android
+
+    - name: Удаляем глобальный NDK
+      run: |
+        sudo rm -rf /usr/local/lib/android/sdk/ndk
+        sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
 
     - name: Качаем SDK и NDK
       run: |
         mkdir -p ~/android-sdk
         cd ~/android-sdk
         
-        # SDK tools
+        # SDK
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip
-        
-        # Создаём структуру с latest
         mkdir -p cmdline-tools/latest
         mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
         
@@ -72,13 +71,7 @@ jobs:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
       run: |
-        # Ещё раз удаляем jnius на всякий случай
-        rm -rf jnius pyjnius
-        
-        export PATH=$PATH:/home/runner/android-sdk/cmdline-tools/latest/bin
-        rm -rf ~/.local/share/python-for-android/build/
-        rm -rf ~/.local/share/python-for-android/dists/
-        
+        # Сборка с чистого листа
         p4a apk --private . \
           --package=org.example.myapp \
           --name "My App" \
