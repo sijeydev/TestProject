@@ -9,31 +9,21 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     container:
-      image: kivy/buildozer:latest  # Используем официальный образ Buildozer
+      image: kivy/buildozer:latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Fix permissions for Buildozer
-        run: |
-          # В контейнере Buildozer работает из-под пользователя 'user' (UID 1000)
-          # Нам нужно дать этому пользователю права на наши файлы.
-          chown -R 1000:1000 ${{ github.workspace }}
-
       - name: Build with Buildozer
         run: |
-          # Переходим в директорию с проектом и запускаем сборку
-          cd ${{ github.workspace }}
-          # Создаем spec-файл, если его нет
+          cd /github/workspace
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
-          # Правим версии в spec-файле (Python 3.8, Kivy 2.1.0)
           sed -i 's/requirements = .*/requirements = python3==3.8.0,kivy==2.1.0/g' buildozer.spec
           sed -i 's/android.ndk = .*/android.ndk = 25b/g' buildozer.spec
           sed -i 's/android.sdk = .*/android.sdk = 33/g' buildozer.spec
           sed -i 's/android.build_tools_version = .*/android.build_tools_version = 33.0.2/g' buildozer.spec
-          # Запускаем сборку
           buildozer -v android debug
 
       - name: Upload APK
