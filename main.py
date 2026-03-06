@@ -5,49 +5,59 @@ from kivy.app import App
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 
-# Создаём папку для логов, если её нет
-log_dir = '/storage/emulated/0/пайтон'
-if not os.path.exists(log_dir):
-    try:
-        os.makedirs(log_dir)
-    except:
-        log_dir = '/sdcard/пайтон'  # запасной путь
-        if not os.path.exists(log_dir):
-            try:
-                os.makedirs(log_dir)
-            except:
-                log_dir = None
+# Пробуем разные пути
+possible_paths = [
+    '/sdcard/log.txt',
+    '/storage/emulated/0/log.txt',
+    '/storage/emulated/0/пайтон/log.txt',
+    '/data/data/org.example.myapp/files/log.txt'  # внутреннее хранилище приложения
+]
 
-log_file = os.path.join(log_dir, 'log.txt') if log_dir else '/sdcard/log.txt'
+log_file = None
+for path in possible_paths:
+    try:
+        # Проверяем, можем ли писать
+        with open(path, 'w') as f:
+            f.write('Тест записи\n')
+        log_file = path
+        break
+    except:
+        continue
 
 def log_error(error_text):
-    """Записывает ошибку в файл"""
+    if not log_file:
+        return
     try:
-        with open(log_file, 'w', encoding='utf-8') as f:
-            f.write(f"Ошибка: {error_text}\n")
-            f.write("Полный traceback:\n")
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"\n=== {error_text} ===\n")
             traceback.print_exc(file=f)
-    except Exception as e:
-        # Если не можем записать в файл, хотя бы в stderr
-        print(f"Не удалось записать лог: {e}", file=sys.stderr)
+    except:
+        pass
+
+# Пишем сразу при запуске
+if log_file:
+    with open(log_file, 'a') as f:
+        f.write("Приложение запущено\n")
 
 class MyApp(App):
     def build(self):
+        if log_file:
+            with open(log_file, 'a') as f:
+                f.write("build() вызван\n")
         try:
-            # Твой код здесь
             layout = BoxLayout(orientation='vertical')
             label = Label(text='TEST IS GOOD!', color="red")
             layout.add_widget(label)
             return layout
         except Exception as e:
-            # Ловим ошибку и пишем в файл
             log_error(str(e))
-            # Показываем пользователю, что пошло не так
-            return Label(text=f"Ошибка: {e}\nЛог сохранён в {log_file}")
+            return Label(text="Ошибка")
 
 if __name__ == '__main__':
+    if log_file:
+        with open(log_file, 'a') as f:
+            f.write("__main__ запущен\n")
     try:
         MyApp().run()
     except Exception as e:
         log_error(str(e))
-        print(f"Критическая ошибка: {e}", file=sys.stderr)
