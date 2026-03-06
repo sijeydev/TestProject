@@ -14,11 +14,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Show workspace
-        run: |
-          echo "Workspace: $GITHUB_WORKSPACE"
-          ls -la $GITHUB_WORKSPACE
-
       - name: Build with Buildozer
         run: |
           cd $GITHUB_WORKSPACE
@@ -29,5 +24,5 @@ jobs:
           sed -i 's/android.ndk = .*/android.ndk = 25b/g' buildozer.spec
           sed -i 's/android.sdk = .*/android.sdk = 33/g' buildozer.spec
           sed -i 's/android.build_tools_version = .*/android.build_tools_version = 33.0.2/g' buildozer.spec
-          # Запускаем с флагом --accept-root
-          buildozer -v android debug --accept-root
+          # Эмулируем ответ "y" через yes
+          yes | buildozer -v android debug
