@@ -64,7 +64,7 @@ jobs:
         cd ~/android-sdk
         ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
 
-    - name: Сборка APK
+    - name: Сборка APK (две архитектуры)
       env:
         ANDROIDSDK: /home/runner/android-sdk
         ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
@@ -78,6 +78,7 @@ jobs:
           --bootstrap=sdl2 \
           --requirements=python3,kivy==2.2.1 \
           --arch=arm64-v8a \
+          --arch=armeabi-v7a \
           --release \
           --ndk-dir=$ANDROIDNDK \
           --sdk-dir=$ANDROIDSDK \
