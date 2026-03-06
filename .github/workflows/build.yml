@@ -29,4 +29,5 @@ jobs:
           sed -i 's/android.ndk = .*/android.ndk = 25b/g' buildozer.spec
           sed -i 's/android.sdk = .*/android.sdk = 33/g' buildozer.spec
           sed -i 's/android.build_tools_version = .*/android.build_tools_version = 33.0.2/g' buildozer.spec
-          buildozer -v android debug
+          # Запускаем с флагом --accept-root
+          buildozer -v android debug --accept-root
