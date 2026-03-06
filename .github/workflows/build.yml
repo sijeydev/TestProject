@@ -82,7 +82,10 @@ jobs:
           --ndk-dir=$ANDROIDNDK \
           --sdk-dir=$ANDROIDSDK \
           --android-api=33 \
-          --minsdk=21
+          --minsdk=21 \
+          --permission INTERNET \
+          --permission WRITE_EXTERNAL_STORAGE \
+          --add-source .
 
     - name: Найти и подготовить APK
       run: |
@@ -94,12 +97,10 @@ jobs:
         echo "📦 Найденные APK:"
         ls -la apk_export/
         
-        # Проверяем, есть ли APK
         if ls apk_export/*.apk 1> /dev/null 2>&1; then
           FIRST_APK=$(ls apk_export/*.apk | head -1)
           cp "$FIRST_APK" ./myapp.apk
           echo "✅ APK готов: myapp.apk"
-          echo "Размер APK:"
           ls -lh myapp.apk
         else
           echo "❌ APK не найден!"
