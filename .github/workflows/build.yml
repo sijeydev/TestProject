@@ -21,6 +21,18 @@ jobs:
           pip3 install --upgrade pip
           pip3 install buildozer cython==0.29.36
 
+      - name: Убиваем pyjnius
+        run: |
+          # Находим где лежат рецепты p4a
+          P4A_DIR=$(python3 -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])" 2>/dev/null || echo "")
+          if [ -n "$P4A_DIR" ]; then
+            echo "P4A recipes at: $P4A_DIR"
+            rm -rf $P4A_DIR/pyjnius
+            echo "✅ pyjnius удалён"
+          else
+            echo "ℹ️ Рецепты не найдены (будет позже)"
+          fi
+
       - name: Build with Buildozer
         run: |
           cd $GITHUB_WORKSPACE
