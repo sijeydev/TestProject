@@ -1,119 +1,18 @@
-name: Build Kivy APK
+name: Build with Buildozer
 
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
+on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.8'
-
-    - name: Set up Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-
-    - name: Удаляем глобальный NDK
-      run: |
-        sudo rm -rf /usr/local/lib/android/sdk/ndk
-        sudo rm -rf /usr/local/lib/android/sdk/ndk-bundle
-
-    - name: Ставим p4a со старым Cython
-      run: |
-        pip install --user --upgrade pip
-        pip install --user cython==0.29.36
-        pip install --user virtualenv
-        pip install --user python-for-android
-        
-        # Удаляем pyjnius
-        P4A_DIR=$(python -c "import pythonforandroid.recipes; print(pythonforandroid.recipes.__path__[0])")
-        rm -rf $P4A_DIR/pyjnius
-        rm -rf ~/.local/share/python-for-android/packages/pyjnius
-        rm -rf ~/.local/share/python-for-android/build/other_builds/pyjnius*
-
-    - name: Качаем SDK и NDK
-      run: |
-        mkdir -p ~/android-sdk
-        cd ~/android-sdk
-        
-        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-        unzip -q commandlinetools-linux-11076708_latest.zip
-        mkdir -p cmdline-tools/latest
-        mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-        
-        wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-        unzip -q android-ndk-r25b-linux.zip
-
-    - name: Принимаем лицензии
-      run: |
-        cd ~/android-sdk
-        yes | ./cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$HOME/android-sdk
-
-    - name: Ставим платформы
-      run: |
-        cd ~/android-sdk
-        ./cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" --sdk_root=$HOME/android-sdk
-
-    - name: Сборка APK (Python 3.8 для телефона)
-      env:
-        ANDROIDSDK: /home/runner/android-sdk
-        ANDROIDNDK: /home/runner/android-sdk/android-ndk-r25b
-      run: |
-        rm -rf ~/.local/share/python-for-android
-        
-        p4a apk --private . \
-          --package=org.example.myapp \
-          --name "My App" \
-          --version 0.1 \
-          --bootstrap=sdl2 \
-          --requirements=python3==3.8.0,kivy==2.2.1 \
-          --arch=arm64-v8a \
-          --arch=armeabi-v7a \
-          --release \
-          --ndk-dir=$ANDROIDNDK \
-          --sdk-dir=$ANDROIDSDK \
-          --android-api=33 \
-          --minsdk=21 \
-          --permission INTERNET \
-          --permission WRITE_EXTERNAL_STORAGE \
-          --add-source .
-
-    - name: Найти и подготовить APK
-      run: |
-        echo "🔍 Ищем APK..."
-        mkdir -p apk_export
-        find ~/.local/share/python-for-android -name "*.apk" -exec cp {} apk_export/ \;
-        find . -name "*.apk" -exec cp {} apk_export/ \;
-        
-        echo "📦 Найденные APK:"
-        ls -la apk_export/
-        
-        if ls apk_export/*.apk 1> /dev/null 2>&1; then
-          FIRST_APK=$(ls apk_export/*.apk | head -1)
-          cp "$FIRST_APK" ./myapp.apk
-          echo "✅ APK готов: myapp.apk"
-          ls -lh myapp.apk
-        else
-          echo "❌ APK не найден!"
-          exit 1
-        fi
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: MyApp-APK
-        path: |
-          apk_export/*.apk
-          myapp.apk
-        if-no-files-found: error
-        retention-days: 30
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+      - run: |
+          pip install --user buildozer cython==0.29.36
+          buildozer android debug
+      - uses: actions/upload-artifact@v4
+        with:
+          path: bin/*.apk
